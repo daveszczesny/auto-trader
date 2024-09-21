@@ -2,7 +2,7 @@
 help:
 	@echo "Usage: make setup-venv"
 	@echo ""
-	@echo "Usage: make run [df=<download_folder>] [cf=<convert_folder>] [s=<YYYY-MM-DD>] [e=<YYYY-MM-DD>] [m=true]"
+	@echo "Usage: make run [df=<download_folder>] [cf=<convert_folder>] [s=<YYYY-MM-DD>] [e=<YYYY-MM-DD>] [m=true] [C=true]"
 	@echo ""
 	@echo "Arguments:"
 	@echo "  df   Folder to download data"
@@ -10,6 +10,7 @@ help:
 	@echo "  e    End date in YYYY-MM-DD format"
 	@echo "  cf   Folder to save converted CSV files"
 	@echo "  m    Merge data (true/false)"
+	@echo "  C    Clean up download directorys (true/false)"
 	@echo ""
 	@echo "Examples:"
 	@echo "  make run df=data cf=csv_data s=2022-01-01 e=2022-01-31 m=true"
@@ -26,14 +27,16 @@ cf ?= # convert folder
 s ?= # start date
 e ?= # end date
 m ?= false # merge
+C ?= false # clean up
 
 run:
-	venv/bin/python3 main.py \
+	venv/bin/python3 drep.py \
 		${if ${df}, --download ${df}, } \
 		${if ${cf}, --convert ${cf}, } \
 		${if ${s}, --start ${s}, } \
 		${if ${e}, --end ${e}, } \
-		${if ${m}, --merge, }
+		$(if $(filter true, $(m)),--merge) \
+		$(if $(filter true, $(C)),--clean)
 
 
 

@@ -11,7 +11,6 @@ class Logger:
         return _logger
 
     def log_info(self, msg: str):
-        print('\n')
         _logger.info(msg)
 
     def log_warning(self, msg: str):

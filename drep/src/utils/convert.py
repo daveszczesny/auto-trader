@@ -8,6 +8,10 @@ from src.utils.constants import FAILED_CONVERSIONS_FILE
 
 def bi5_to_csv(from_directory: str, directory: str, aggregation: str = '1min'):
 
+    
+    if not directory:
+        raise ValueError("Directory not provided")
+    
     files_to_convert: list | None = os.listdir(from_directory)
 
     if not files_to_convert:
