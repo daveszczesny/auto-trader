@@ -1,3 +1,9 @@
+"""
+Data retrieved from Dukascopy: https://www.dukascopy.com
+API documentation: https://www.dukascopy.com/swiss/english/marketwatch/historical/
+This data is used to train the AI agent
+"""
+
 import os
 from time import sleep
 from datetime import datetime, timedelta

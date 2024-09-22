@@ -1,4 +1,5 @@
 import pandas as pd
+import os
 from src.servies.logger import logger
 
 CLOSE = 'ask_close'
@@ -7,11 +8,14 @@ def csv_to_dataframe(file: str) -> pd.DataFrame:
     """
     Read csv file and return as DataFrame
     """
+
+    os.chdir('../environments/resources/')
+
     try:
         data = pd.read_csv(file)
 
     except Exception as e:
-        logger.error(f"Failed to read {file}. Error: {e}")
+        logger.log_error(f"Failed to read {file}. Error: {e}")
         raise e
 
     return data
@@ -25,15 +29,57 @@ def dataframe_to_csv(data: pd.DataFrame, file: str):
         data.to_csv(file, index=False)
 
     except Exception as e:
-        logger.error(f"Failed to write to {file}. Error: {e}")
+        logger.log_error(f"Failed to write to {file}. Error: {e}")
         raise e
+
+
+def add_indicator(data: pd.DataFrame, indicator: str) -> pd.DataFrame:
+    """
+    Add indicator to dataset
+    """
+    try:
+        if indicator.startswith('SMA'):
+            window = int(indicator.split('_')[1])
+            data = simple_moving_average(data, window)
+
+        elif indicator.startswith('EMA'):
+            window = int(indicator.split('_')[1])
+            data = exponential_moving_average(data, window)
+
+        elif indicator == 'RSI':
+            data = relative_strength_index(data)
+
+        elif indicator == 'ATR':
+            data = average_true_range(data)
+
+        elif indicator == 'VWAP':
+            data = volume_weighted_average_price(data)
+
+    except Exception as e:
+        logger.log_error(f"Failed to add {indicator} to dataset. Error: {e}")
+        raise e
+
+    return data
+
+
+def remove_indicator(data: pd.DataFrame, indicator: str) -> pd.DataFrame:
+    """
+    Remove indicator from dataset
+    """
+    try:
+        data.drop(indicator, axis=1, inplace=True)
+
+    except Exception as e:
+        logger.log_error(f"Failed to remove {indicator} from dataset. Error: {e}")
+
+    return data
 
 
 def simple_moving_average(data: pd.DataFrame, window: int = 20) -> pd.DataFrame:
     """
     Calculate simple moving average
     """
-    data['SMA'] = data[CLOSE].rolling(window=window).mean()
+    data[f'SMA_{window}'] = data[CLOSE].rolling(window=window).mean()
     return data
 
 
@@ -41,7 +87,7 @@ def exponential_moving_average(data: pd.DataFrame, window: int = 20) -> pd.DataF
     """
     Calculate exponential moving average
     """
-    data['EMA'] = data[CLOSE].ewm(span=window, adjust=False).mean()
+    data[f'EMA_{window}'] = data[CLOSE].ewm(span=window, adjust=False).mean()
     return data
 
 
@@ -74,7 +120,6 @@ def average_true_range(data: pd.DataFrame, window: int = 14) -> pd.DataFrame:
     return data
 
 
-# volume not in data
 def volume_weighted_average_price(data: pd.DataFrame) -> pd.DataFrame:
     """
     Calculate volume weighted average price
@@ -83,3 +128,5 @@ def volume_weighted_average_price(data: pd.DataFrame) -> pd.DataFrame:
     data['VWAP'] = (data[CLOSE] * data['volume']).cumsum() / data['volume'].cumsum()
 
     return data
+
+

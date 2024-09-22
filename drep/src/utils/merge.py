@@ -3,22 +3,26 @@ import os
 from src.servies.logger import logger
 from datetime import datetime, timedelta
 
-FILENAME = 'combined.csv'
+PATH_RESOURCES = '../environments/resources/'
 
-def merge_csv_files(directory: str, start_date: str, end_date: str):
+def merge_csv_files(from_directory: str, destination_file: str | None, start_date: str, end_date: str):
     """
     Merge csv files into one file
     """
 
-    if os.path.exists(FILENAME):
-        os.remove(FILENAME)
+    # Set default filename
+    if destination_file is None:
+        destination_file = 'data.csv'
+
+    if os.path.exists(PATH_RESOURCES + destination_file):
+        os.remove(PATH_RESOURCES + destination_file)
     
     # create file
-    open(FILENAME, 'w').close()
+    open(PATH_RESOURCES + destination_file, 'w').close()
 
     logger.log_info("Merging csv files...")
 
-    total_files_to_merge: int = len(os.listdir(directory))
+    total_files_to_merge: int = len(os.listdir(from_directory))
     files_merged: int = 0
     files_skipped: int = 0
 
@@ -31,9 +35,8 @@ def merge_csv_files(directory: str, start_date: str, end_date: str):
 
     while current_dt <= end_dt:
         for hour in range(24):
-            
             filename: str = f"{current_dt.year}_{current_dt.month}_{current_dt.day:02d}_{hour:02d}.csv"
-            filepath: str = f"{directory}/{filename}"
+            filepath: str = f"{from_directory}/{filename}"
 
             if not os.path.exists(filepath):
                 files_skipped += 1
@@ -53,8 +56,8 @@ def merge_csv_files(directory: str, start_date: str, end_date: str):
                     # Skip lines with no values
                     if ',,,' not in line:
                         lines_to_write.append(line)
-            
-            with open(FILENAME, 'a') as file:
+
+            with open(PATH_RESOURCES + destination_file, 'a') as file:
                 for line in lines_to_write:
                     file.write(line)
                 files_merged += 1
