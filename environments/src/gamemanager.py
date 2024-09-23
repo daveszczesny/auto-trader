@@ -4,7 +4,7 @@ from utils.constants import DATASET_NAME
 
 class GameManager:
     _instance = None
-
+    
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super(GameManager, cls).__new__(cls)
@@ -41,6 +41,19 @@ class GameManager:
         Get the current element
         """
         return self.current_element
+    
+
+    def get_current_bid_price(self) -> float:
+        """
+        Get the current bid price
+        """
+        return self.current_element['bid_close']
+    
+    def get_current_ask_price(self) -> float:
+        """
+        Get the current ask price
+        """
+        return self.current_element['ask_close']
 
 # Usage
 game_manager = GameManager()
