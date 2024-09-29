@@ -52,7 +52,6 @@ class ForexEnv(gym.Env):
         self.current_balance: float = initial_balance
         self.unrealized_profit: float = 0.0
         self.previous_balance: float = 0.0
-        self.total_profit: float = 0.0
 
 
     def step(self, action: np.ndarray) -> Tuple[np.array, float, bool, bool, dict]:
@@ -61,6 +60,7 @@ class ForexEnv(gym.Env):
         :param action: The action taken by the agent. (0: do nothing, 1: long, 2: short, 3: close)
         :return new observation, reward, done, info
         """
+        print(action)
         action: Action = self.construct_action(action)
 
         with open('brooksai_logs.txt', 'a') as f:
@@ -82,11 +82,18 @@ class ForexEnv(gym.Env):
                           trade.lot_size) for trade in open_trades
         )
 
+
         self.apply_environment_rules()
 
         # proceed to the next time step
+        done = False
         self.current_step += 1
-        done = self.current_step >= self.n_steps or self.current_balance <= 0
+        if self.current_step >= self.n_steps:
+            self.reward += 100
+            done = True
+        elif self.current_balance <= 0:
+            self.reward -= 100
+            done = True
 
         if self.current_step % 500 == 0:
             with open('brooksai_logs.txt', 'a') as f:
@@ -95,9 +102,8 @@ class ForexEnv(gym.Env):
         if done:
             self.current_balance += close_all_trades(self.current_price)
 
-        self.total_profit = self.current_balance - self.initial_balance
         # Calculate reward
-        reward = self.total_profit - self.previous_balance + self.unrealized_profit + self.reward
+        reward = self.current_balance + self.unrealized_profit + self.reward
 
         return self._get_observation(), reward, done, False, {}
 
@@ -108,6 +114,11 @@ class ForexEnv(gym.Env):
         Reset the state of the environment to an initial state
         """
         super().reset(seed=seed)
+
+        with open('brooksai_logs.txt', 'a') as f:
+            f.write(f"\n\nBalance: {round(self.current_balance, 2)}\n")
+            f.write(f"Unrealized Profit: {round(self.unrealized_profit, 2)}\n")
+            f.write(f"Open Trades: {len(open_trades)}\n\n\n")
 
         # reset environment variables
         self.current_step = 0
@@ -120,7 +131,6 @@ class ForexEnv(gym.Env):
         # reset agent variables
         self.current_balance = self.initial_balance
         self.unrealized_profit = 0.0
-        self.total_profit = 0.0
 
         return self._get_observation(), {}
 
@@ -202,9 +212,9 @@ class ForexEnv(gym.Env):
 
             # Penalise for not setting stop loss or take profit
             if action.data.stop_loss is None:
-                self.current_balance -= Punishment.NO_STOP_LOSS.value
+                self.reward -= Punishment.NO_STOP_LOSS.value
             if action.data.take_profit is None:
-                self.current_balance -= Punishment.NO_TAKE_PROFIT.value
+                self.reward -= Punishment.NO_TAKE_PROFIT.value
 
         elif action.action_type == ActionType.CLOSE:
             self.current_balance += close_trade(action.trade, self.current_price)

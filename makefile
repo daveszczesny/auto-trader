@@ -6,6 +6,7 @@ setup-venv:
 	venv/bin/pip install -r requirements/requirements.txt
 	venv/bin/pip install git+https://github.com/DLR-RM/stable-baselines3
 	venv/bin/pip install pylint
+	venv/bin/pip install pytest
 
 clean-venv:
 	rm -rf venv
@@ -16,3 +17,6 @@ train:
 lint:
 	venv/bin/pylint brooksai
 	venv/bin/pylint drep
+
+test-unit:
+	PYTHONPATH=${shell pwd} venv/bin/pytest brooksai/tests/unit

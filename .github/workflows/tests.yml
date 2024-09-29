@@ -1,4 +1,4 @@
-name: Pylint
+name: Tests
 
 on: [push]
 
@@ -20,6 +20,9 @@ jobs:
     - name: Analysing code with pylint
       run: |
         make lint
+    - name: Running Unit Tests
+      run: |
+        make test-unit
     - name: Clean up
       run: |
         make clean-venv
