@@ -19,7 +19,7 @@ jobs:
         make setup-venv
     - name: Analysing code with pylint
       run: |
-        pylint $(git ls-files '*.py')
+        make lint
     - name: Clean up
       run: |
         make clean-venv
