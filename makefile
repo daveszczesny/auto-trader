@@ -8,3 +8,7 @@ setup-venv:
 
 train:
 	venv/bin/python brooksai/train_agent.py
+
+lint:
+	venv/bin/pylint brooksai
+	venv/bin/pylint drep

@@ -1,11 +1,17 @@
 
 import os
-from src.servies.logger import logger
+from typing import Optional
 from datetime import datetime, timedelta
+
+from drep.src.servies.logger import logger
 
 PATH_RESOURCES = '../environments/resources/'
 
-def merge_csv_files(from_directory: str, destination_file: str | None, start_date: str, end_date: str):
+# pylint: disable=too-many-locals
+def merge_csv_files(from_directory: str,
+                    destination_file: Optional[str],
+                    start_date: str,
+                    end_date: str):
     """
     Merge csv files into one file
     """
@@ -16,7 +22,7 @@ def merge_csv_files(from_directory: str, destination_file: str | None, start_dat
 
     if os.path.exists(PATH_RESOURCES + destination_file):
         os.remove(PATH_RESOURCES + destination_file)
-    
+
     # create file
     open(PATH_RESOURCES + destination_file, 'w').close()
 
@@ -35,7 +41,8 @@ def merge_csv_files(from_directory: str, destination_file: str | None, start_dat
 
     while current_dt <= end_dt:
         for hour in range(24):
-            filename: str = f"{current_dt.year}_{current_dt.month}_{current_dt.day:02d}_{hour:02d}.csv"
+            filename: str = f"{current_dt.year}_{current_dt.month}"\
+                            f"_{current_dt.day:02d}_{hour:02d}.csv"
             filepath: str = f"{from_directory}/{filename}"
 
             if not os.path.exists(filepath):
@@ -45,7 +52,7 @@ def merge_csv_files(from_directory: str, destination_file: str | None, start_dat
             lines = []
             with open(filepath, 'r') as file:
                 lines = file.readlines()
-                
+
                 # Remove the first line which is the header
                 lines = lines if first_file else lines[1:]
                 first_file = False
@@ -62,9 +69,7 @@ def merge_csv_files(from_directory: str, destination_file: str | None, start_dat
                     file.write(line)
                 files_merged += 1
 
-            
             logger.log_state(f"Merged {files_merged} files out of {total_files_to_merge}, "
                              f"Skipped: {files_skipped} files")
         current_dt += timedelta(days=1)
     print('\n')
-

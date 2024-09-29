@@ -1,6 +1,6 @@
-import pandas as pd
 import os
-from src.servies.logger import logger
+import pandas as pd
+from drep.src.servies.logger import logger
 
 CLOSE = 'ask_close'
 
@@ -14,7 +14,7 @@ def csv_to_dataframe(file: str) -> pd.DataFrame:
     try:
         data = pd.read_csv(file)
 
-    except Exception as e:
+    except Exception as e: # pylint: disable=broad-except
         logger.log_error(f"Failed to read {file}. Error: {e}")
         raise e
 
@@ -28,7 +28,7 @@ def dataframe_to_csv(data: pd.DataFrame, file: str):
     try:
         data.to_csv(file, index=False)
 
-    except Exception as e:
+    except Exception as e: # pylint: disable=broad-except
         logger.log_error(f"Failed to write to {file}. Error: {e}")
         raise e
 
@@ -55,7 +55,7 @@ def add_indicator(data: pd.DataFrame, indicator: str) -> pd.DataFrame:
         elif indicator == 'VWAP':
             data = volume_weighted_average_price(data)
 
-    except Exception as e:
+    except Exception as e: # pylint: disable=broad-except
         logger.log_error(f"Failed to add {indicator} to dataset. Error: {e}")
         raise e
 
@@ -69,7 +69,7 @@ def remove_indicator(data: pd.DataFrame, indicator: str) -> pd.DataFrame:
     try:
         data.drop('EMA', axis=1, inplace=True)
 
-    except Exception as e:
+    except Exception as e: # pylint: disable=broad-except
         logger.log_error(f"Failed to remove {indicator} from dataset. Error: {e}")
 
     return data
@@ -116,7 +116,7 @@ def average_true_range(data: pd.DataFrame, window: int = 14) -> pd.DataFrame:
 
     data['true_range'] = data[['high_low', 'high_close', 'low_close']].max(axis=1)
     data['ATR'] = data['true_range'].rolling(window=window).mean()
-    
+
     return data
 
 
@@ -128,5 +128,3 @@ def volume_weighted_average_price(data: pd.DataFrame) -> pd.DataFrame:
     data['VWAP'] = (data[CLOSE] * data['volume']).cumsum() / data['volume'].cumsum()
 
     return data
-
-

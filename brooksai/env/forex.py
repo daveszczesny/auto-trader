@@ -1,17 +1,17 @@
+from typing import Tuple, Optional, Any
 import gymnasium as gym
 from gymnasium import spaces
-
 import numpy as np
 import pandas as pd
 
-from typing import Tuple, Optional, Any
-
 from currency_converter import CurrencyConverter
-from env.models.trade import open_trades, reset_open_trades, get_trade_state, open_trade, close_trade, \
-    trigger_stop_or_take_profit, Trade, close_all_trades
-from env.models.constants import TradeType, ActionType, Punishment, Fee, DEFAUlT_TRADE_WINDOW, action_type_mapping, MAX_TRADES
-from env.models.action import Action, TradeAction
-from env.utils.converter import pip_to_profit
+
+from brooksai.env.models.trade import reset_open_trades, get_trade_state, close_trade, \
+    trigger_stop_or_take_profit, close_all_trades, Trade, open_trades
+from brooksai.env.models.constants import TradeType, ActionType, Punishment, Fee, \
+    DEFAULT_TRADE_WINDOW, action_type_mapping, MAX_TRADES
+from brooksai.env.models.action import Action, TradeAction
+from brooksai.env.utils.converter import pip_to_profit
 
 c = CurrencyConverter()
 
@@ -20,6 +20,7 @@ class ForexEnv(gym.Env):
     Custom Environment for forex trading
     """
 
+    # pylint: disable=too-many-instance-attributes
     def __init__(self, data: str, initial_balance: int = 1_000, render_mode: Optional[Any] = None):
 
         self._load_data(data)
@@ -28,9 +29,10 @@ class ForexEnv(gym.Env):
         self.n_steps = len(self.data)
         self.render_mode = render_mode
 
-        MAX_TRADES = 10
-
-        self.observation_space = spaces.Box(low = 0, high = np.inf, shape=(8 + MAX_TRADES,), dtype=np.float32)
+        self.observation_space = spaces.Box(low = 0,
+                                            high = np.inf,
+                                            shape=(8 + MAX_TRADES,),
+                                            dtype=np.float32)
 
         # action taken, lot size, stop loss, take profit, trade index to close
         self.action_space = spaces.Box(
@@ -43,7 +45,7 @@ class ForexEnv(gym.Env):
         self.current_dataset: pd.Series = self.data.iloc[self.current_step]
         self.current_price: float = self.current_dataset['bid_close']
         self.reward: float = 0.0
-        self.trade_window: int = DEFAUlT_TRADE_WINDOW
+        self.trade_window: int = DEFAULT_TRADE_WINDOW
 
         # agent variables
         self.initial_balance: float = initial_balance
@@ -53,16 +55,14 @@ class ForexEnv(gym.Env):
         self.total_profit: float = 0.0
 
 
-    def step(self, raw_action: np.ndarray) -> Tuple[np.array, float, bool, bool, dict]:
+    def step(self, action: np.ndarray) -> Tuple[np.array, float, bool, bool, dict]:
         """
         Execute one time step within the environment
         :param action: The action taken by the agent. (0: do nothing, 1: long, 2: short, 3: close)
         :return new observation, reward, done, info
         """
+        action: Action = self.construct_action(action)
 
-        
-        action: Action = self.construct_action(raw_action)
-        
         with open('brooksai_logs.txt', 'a') as f:
             f.write(f"Action: {action.action_type}\n")
 
@@ -78,7 +78,8 @@ class ForexEnv(gym.Env):
         self.unrealized_profit = sum(
             pip_to_profit(self.current_price - trade.open_price, trade.lot_size) if
             trade.trade_type == TradeType.LONG else
-            pip_to_profit(trade.open_price - self.current_price, trade.lot_size) for trade in open_trades
+            pip_to_profit(trade.open_price - self.current_price,
+                          trade.lot_size) for trade in open_trades
         )
 
         self.apply_environment_rules()
@@ -100,7 +101,9 @@ class ForexEnv(gym.Env):
 
         return self._get_observation(), reward, done, False, {}
 
-    def reset(self, seed: Any = None, options=None) -> Tuple[np.array, dict]:
+    def reset(self,
+              seed: Optional[int] = None,
+              options: Optional[dict] = None) -> Tuple[np.array, dict]:
         """
         Reset the state of the environment to an initial state
         """
@@ -110,7 +113,7 @@ class ForexEnv(gym.Env):
         self.current_step = 0
         self.current_dataset = self.data.iloc[self.current_step]
         self.current_price = self.current_dataset['bid_close']
-        self.trade_window = DEFAUlT_TRADE_WINDOW
+        self.trade_window = DEFAULT_TRADE_WINDOW
         self.reward = 0.0
         reset_open_trades()
 
@@ -169,7 +172,7 @@ class ForexEnv(gym.Env):
             if 0 <= trade_index < len(open_trades):
                 trade = open_trades[trade_index]
 
-            if trade == None:
+            if trade is None:
                 action = Action(action_type=ActionType.DO_NOTHING)
             else:
                 action = Action(action_type=action_type, trade=trade)
@@ -186,11 +189,13 @@ class ForexEnv(gym.Env):
         if action.action_type == ActionType.DO_NOTHING:
             return
 
-        if len(open_trades) < MAX_TRADES and (action.action_type == ActionType.LONG or action.action_type == ActionType.SHORT):
+        if len(open_trades) < MAX_TRADES and \
+            action.action_type in [ActionType.LONG, ActionType.SHORT]:
             Trade(
                 lot_size=action.data.lot_size,
                 open_price=self.current_price,
-                trade_type=TradeType.LONG if action.action_type == ActionType.LONG else TradeType.SHORT,
+                trade_type=TradeType.LONG if action.action_type == ActionType.LONG
+                                            else TradeType.SHORT,
                 stop_loss=action.data.stop_loss,
                 take_profit=action.data.take_profit
             )
@@ -208,7 +213,8 @@ class ForexEnv(gym.Env):
         self._check_trade_ttl()
 
         # Check if margin call is needed
-        # Margin call is triggered if the current balance is less than the sum of the margin for all trades plus the unrealised profit
+        # Margin call is triggered if the current balance is less than the sum
+        # of the margin for all trades plus the unrealised profit
         if self.current_balance <= (self._calc_sum_margin() + self.unrealized_profit):
             self._margin_call()
             self.reward -= Punishment.MARGIN_CALLED.value
@@ -238,7 +244,7 @@ class ForexEnv(gym.Env):
         for trade in open_trades:
             value += close_trade(trade, self.current_price)
             value -= Fee.TRANSACTION_FEE.value
-        
+
         self.current_balance += value
 
     def _calc_sum_margin(self) -> float:

@@ -1,64 +1,115 @@
+"""
+ppo_agent.py
+
+This module defines the PPOAgent class, which is used to train
+    and manage a PPO (Proximal Policy Optimization) agent for forex trading.
+
+Classes:
+    PPOAgent: A class that encapsulates the PPO agent, providing methods
+        for training, saving, and loading the agent.
+
+Dependencies:
+    - gymnasium
+    - stable_baselines3
+    - typing
+    - env.models.constants (ActionType, action_type_mapping)
+    - env.models.action (Action, TradeAction)
+    - env.models.trade (get_trade_by_id, open_trades, Trade)
+
+Usage:
+    from ppo_agent import PPOAgent
+
+    # Initialize the environment
+    env = gym.make('YourEnv-v0')
+
+    # Create a PPOAgent instance
+    agent = PPOAgent(env)
+
+    # Train the agent
+    agent.learn(total_timesteps=4_000_000)
+
+    # Save the agent
+    agent.save('path_to_save_model')
+
+    # Load the agent
+    agent.load('path_to_load_model')
+
+Classes:
+    PPOAgent: A class that encapsulates the PPO agent, providing methods
+        for training, saving, and loading the agent.
+
+Methods:
+    __init__(self, env: gym.Env): Initializes the PPOAgent with the given environment.
+    learn(self, total_timesteps: int = 4_000_000): Trains the PPO agent for
+        the specified number of timesteps.
+    save(self, path: str): Saves the trained PPO agent to the specified path.
+    load(self, path: str): Loads a PPO agent from the specified path.
+"""
+
 import gymnasium as gym
 from stable_baselines3 import PPO
 
-from typing import Optional
-
-from env.models.constants import ActionType, action_type_mapping
-from env.models.action import Action, TradeAction
-from env.models.trade import get_trade_by_id, open_trades, Trade
-
 class PPOAgent:
+    """
+    A class to encapsulate the PPO agent, providing methods for training, 
+        saving, and loading the agent.
+
+    Attributes:
+        env (gym.Env): The environment in which the agent will be trained.
+        model (PPO): The PPO model used for training the agent.
+
+    Methods:
+        __init__(self, env: gym.Env): Initializes the PPOAgent with the given environment.
+        learn(self, total_timesteps: int = 4_000_000): Trains the PPO agent for the 
+            specified number of timesteps.
+        save(self, path: str): Saves the trained PPO agent to the specified path.
+        load(self, path: str): Loads a PPO agent from the specified path.
+    """
+
     def __init__(self, env: gym.Env):
+        """
+        Initializes the PPOAgent with the given environment.
+
+        Args:
+            env (gym.Env): The environment in which the agent will be trained.
+        """
         self.env = env
         self.model = PPO('MlpPolicy', env, verbose=1)
 
     def learn(self, total_timesteps: int = 4_000_000):
+        """
+        Trains the PPO agent for the specified number of timesteps.
+
+        Args:
+            total_timesteps (int): The number of timesteps to train the agent.
+            Default is 4,000,000.
+        """
         self.model.learn(total_timesteps=total_timesteps)
 
     def save(self, path: str):
+        """
+        Saves the trained PPO agent to the specified path.
+
+        Args:
+            path (str): The path where the model will be saved.
+        """
         self.model.save(path)
 
     def load(self, path):
+        """
+        Loads a PPO agent from the specified path.
+
+        Args:
+            path (str): The path from which the model will be loaded.
+        """
         self.model = PPO.load(path)
 
     def predict(self, observation):
+        """
+        Predicts the action to take based on the given observation.
+
+        Args:
+            observation: The observation from the environment.
+        """
         raw_action, _ = self.model.predict(observation)
         return raw_action
-    
-
-    def _convert_to_action(self, raw_action) -> Action:
-
-        action_type = action_type_mapping.get(raw_action[0])
-        action: Action
-
-        # If the action is to open a trade
-        if action_type in [ActionType.LONG, ActionType.SHORT]:
-            lot_size: float = round(float(raw_action[1]), 2)
-            stop_loss: Optional[float] = float(raw_action[2]) if raw_action[2] != -1 else None
-            take_profit: Optional[float] = float(raw_action[3]) if raw_action[3] != -1 else None
-
-            trade_action = TradeAction(
-                stop_loss=stop_loss,
-                take_profit=take_profit,
-                lot_size=lot_size
-            )
-            action = Action(
-                action_type=action_type,
-                data=trade_action,
-                trade=None
-            )
-        # If the action is to close
-        elif action_type == ActionType.CLOSE:
-            trade_index = int(raw_action[4])
-            trade: Optional[Trade] = None
-            if 0 <= trade_index < len(open_trades) :
-                trade = open_trades.get(trade_index, None)
-
-            if trade == None:
-                action = Action(action_type=ActionType.DO_NOTHING)
-            else:
-                action = Action(action_type=action_type, trade=trade)
-        else:
-            action = Action(action_type=action_type)
-
-        return action

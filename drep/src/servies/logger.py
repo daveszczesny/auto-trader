@@ -1,6 +1,7 @@
 import logging
 import sys
 
+from typing import Optional
 
 logging.basicConfig(level=logging.INFO)
 _logger = logging.getLogger(__name__)
@@ -19,7 +20,7 @@ class Logger:
     def log_error(self, msg: str):
         _logger.error(msg)
 
-    def log_exception(self, msg: str, exc_info: Exception):
+    def log_exception(self, msg: str, exc_info: Optional[Exception] = None):
         _logger.exception(msg, exc_info=exc_info)
 
     def log_state(self, msg: str):
@@ -28,5 +29,5 @@ class Logger:
         """
         sys.stdout.write(f"\r{msg}")
         sys.stdout.flush()
-        
+
 logger = Logger()

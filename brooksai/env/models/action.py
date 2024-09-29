@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 from typing import Optional
 
-from env.models.constants import ActionType
-from env.models.trade import Trade
+from brooksai.env.models.constants import ActionType
+from brooksai.env.models.trade import Trade
 
 @dataclass
 class TradeAction:
