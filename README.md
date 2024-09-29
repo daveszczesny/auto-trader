@@ -6,6 +6,9 @@
 2. **brooksai**: The home of our little Trader, named after Al Brooks, a famous trader.
 3. **ctrader**: A bot for our broker to link our awesome AI with the harsh reality of the markets.
 
+## Follow the Progress
+[JIRA Link](https://daveszczesny-college.atlassian.net/jira/software/projects/AT/boards/1/backlog)
+
 ## Getting Started
 
 To get started with **drep**, `cd` into the package and read its README.
