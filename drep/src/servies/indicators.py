@@ -9,7 +9,7 @@ def csv_to_dataframe(file: str) -> pd.DataFrame:
     Read csv file and return as DataFrame
     """
 
-    os.chdir('../environments/resources/')
+    os.chdir('../resources/')
 
     try:
         data = pd.read_csv(file)
@@ -67,7 +67,7 @@ def remove_indicator(data: pd.DataFrame, indicator: str) -> pd.DataFrame:
     Remove indicator from dataset
     """
     try:
-        data.drop(indicator, axis=1, inplace=True)
+        data.drop('EMA', axis=1, inplace=True)
 
     except Exception as e:
         logger.log_error(f"Failed to remove {indicator} from dataset. Error: {e}")

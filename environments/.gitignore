@@ -1,6 +1,0 @@
-*.txt
-*.csv
-venv/
-
-
-!requirements/requirements.txt

@@ -58,7 +58,6 @@ if args.add:
 
 if args.remove:
     data = csv_to_dataframe(args.mergefile)
-
     for indicator in args.remove:
         data = remove_indicator(data, indicator)
 
