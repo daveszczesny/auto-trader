@@ -5,6 +5,14 @@ setup-venv:
 	sh venv/bin/activate
 	venv/bin/pip install -r requirements/requirements.txt
 	venv/bin/pip install git+https://github.com/DLR-RM/stable-baselines3
+	venv/bin/pip install pylint
+
+clean-venv:
+	rm -rf venv
 
 train:
-	venv/bin/python brooksai/train_agent.py
+	PYTHONPATH=${shell pwd} venv/bin/python brooksai/train_agent.py
+
+lint:
+	venv/bin/pylint brooksai
+	venv/bin/pylint drep

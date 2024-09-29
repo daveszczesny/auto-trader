@@ -9,14 +9,15 @@ from time import sleep
 from datetime import datetime, timedelta
 from urllib.error import HTTPError
 from urllib.request import urlretrieve
+from typing import Optional
 
-from src.servies.logger import logger
-from src.utils.constants import FOREX_URL, MAX_RETRIES, FAILED_DOWNLOADS_FILE
+from drep.src.servies.logger import logger
+from drep.src.utils.constants import FOREX_URL, MAX_RETRIES, FAILED_DOWNLOADS_FILE
 
 
 TOTAL_FILES: int = 0
 FILES_DOWNLOADED: int = 0
-START_TIME: datetime | None = None
+START_TIME: Optional[datetime] = None
 
 def download_bi5_file_between_dates(directory: str, start_date: str, end_date: str):
     """
@@ -66,7 +67,6 @@ def download_file(directory: str, year: int, month: int, day: int):
     """
     Download bi5 file from Dukascopy given a year, month and day
     """
-    global FILES_DOWNLOADED
 
     month: str = f"{month-1:02d}"
     day: str = f"{day:02d}"
@@ -76,7 +76,7 @@ def download_file(directory: str, year: int, month: int, day: int):
     for hour in range(24):
         HOUR_URL = f'{URL}/{hour:02d}h_ticks.bi5'
 
-        FILES_DOWNLOADED += download_file_from_url(directory, HOUR_URL)
+        FILES_DOWNLOADED = download_file_from_url(directory, HOUR_URL)
         logger.log_state(f"Downloaded {FILES_DOWNLOADED} files out of {TOTAL_FILES}. "
                          f"Time taken: {(datetime.now() - START_TIME).seconds} seconds")
 
@@ -99,16 +99,16 @@ def download_file_from_url(directory: str, url: str) -> int:
         try:
             urlretrieve(url, f"{directory}/" + save_file)
             return 1
-        except HTTPError as e:
-            logger.log_warning(f"\nFailed to download file from {url} on attempt {attempt + 1} / {MAX_RETRIES}")
+        except HTTPError as _: # pylint: disable=broad-except
+            logger.log_warning(f"\nFailed to download file from {url}"\
+                               f"on attempt {attempt + 1} / {MAX_RETRIES}")
             sleep(50)
-        except Exception as e:
+        except Exception as e: # pylint: disable=broad-except
             logger.log_error(f"\nError downloading file. {url}. Exception is {repr(e)}")
             _update_failed_downloads(url)
             break
 
     return 0
-
 
 def _update_failed_downloads(url: str):
     """

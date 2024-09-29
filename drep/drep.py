@@ -1,11 +1,12 @@
 import argparse
 import os
 import shutil
-from src.servies.logger import logger
-from src.servies.dukascopy import download_bi5_file_between_dates
-from src.utils.convert import bi5_to_csv
-from src.utils.merge import merge_csv_files
-from src.servies.indicators import csv_to_dataframe, dataframe_to_csv, add_indicator, remove_indicator
+from drep.src.servies.logger import logger
+from drep.src.servies.dukascopy import download_bi5_file_between_dates
+from drep.src.utils.convert import bi5_to_csv
+from drep.src.utils.merge import merge_csv_files
+from drep.src.servies.indicators import csv_to_dataframe, dataframe_to_csv,\
+    add_indicator, remove_indicator
 
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -13,13 +14,20 @@ os.chdir(os.path.dirname(os.path.abspath(__file__)))
 parser = argparse.ArgumentParser(description='Process some arguments.')
 
 # Parse arguments for download, convert, merge and clean
-parser.add_argument('-d', '--download', type=str, help='Download data to the specified folder')
-parser.add_argument('-s', '--start', type=str, help='Start date in YYYY-MM-DD format')
-parser.add_argument('-e', '--end', type=str, help='End date in YYYY-MM-DD format')
-parser.add_argument('-c', '--convert', type=str, help='Convert data to the specified folder')
-parser.add_argument('-m', '--merge', action='store_true', help='Merge data')
-parser.add_argument('-mf', '--mergefile', type=str, help='Merge data to the specified filename in the resources folder')
-parser.add_argument('-C', '--clean', action='store_true', help='Clean up download folders')
+parser.add_argument('-d', '--download', type=str,\
+                    help='Download data to the specified folder')
+parser.add_argument('-s', '--start', type=str,\
+                    help='Start date in YYYY-MM-DD format')
+parser.add_argument('-e', '--end', type=str,\
+                    help='End date in YYYY-MM-DD format')
+parser.add_argument('-c', '--convert', type=str,\
+                    help='Convert data to the specified folder')
+parser.add_argument('-m', '--merge', action='store_true',\
+                    help='Merge data')
+parser.add_argument('-mf', '--mergefile', type=str,\
+                    help='Merge data to the specified filename in the resources folder')
+parser.add_argument('-C', '--clean', action='store_true',\
+                    help='Clean up download folders')
 
 # Parser arguments for adding, removing indicators
 parser.add_argument('-a', '--add', type=str, action='append', help='Add indicator, i.e. EMA_200')
@@ -62,5 +70,3 @@ if args.remove:
         data = remove_indicator(data, indicator)
 
     dataframe_to_csv(data, args.mergefile)
-
-

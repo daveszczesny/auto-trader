@@ -1,29 +1,30 @@
 import os
 import struct
 import lzma
-import pandas as pd
 from datetime import datetime
-from src.servies.logger import logger
-from src.utils.constants import FAILED_CONVERSIONS_FILE
+
+import pandas as pd
+
+from drep.src.servies.logger import logger
+from drep.src.utils.constants import FAILED_CONVERSIONS_FILE
 
 def bi5_to_csv(from_directory: str, directory: str, aggregation: str = '1min'):
 
-    
     if not directory:
         raise ValueError("Directory not provided")
-    
+
     files_to_convert: list | None = os.listdir(from_directory)
 
     if not files_to_convert:
         logger.log_error("No files to convert found in data directory")
         return
-    
+
     # Clear the failed conversions file
     open(FAILED_CONVERSIONS_FILE, 'w').close()
 
     if not os.path.exists(directory):
         os.makedirs(directory)
-    
+
     files_converted: int = 0
 
     start_time = datetime.now()
@@ -35,33 +36,35 @@ def bi5_to_csv(from_directory: str, directory: str, aggregation: str = '1min'):
             _bi5_to_csv(from_directory, directory, file, aggregation=aggregation)
             files_converted += 1
             logger.log_state(f"Converted {files_converted} files out of {len(files_to_convert)}")
-        except Exception as _:
-            # We are already handling exception within _bi5_to_csv function
+        except Exception as _:  # pylint: disable=broad-except
             pass
 
     time_taken = datetime.now() - start_time
-    logger.log_info(f"Time taken to convert {files_converted} files: {(int) (time_taken.total_seconds())} seconds")
+    logger.log_info(f"Time taken to convert {files_converted} files:"\
+                    f"{(int) (time_taken.total_seconds())} seconds")
 
     failed_conversions = open(FAILED_CONVERSIONS_FILE).read().split('\n')
     if failed_conversions:
-        logger.log_error(f"Failed to convert {len(failed_conversions)} files. Retrying failed conversions")
+        logger.log_error(f"Failed to convert {len(failed_conversions)}"\
+                         "files. Retrying failed conversions")
         for filename in failed_conversions:
             if not filename:
                 continue
             try:
                 _bi5_to_csv(from_directory, directory, filename, aggregation=aggregation)
-            except Exception as _:
+            except Exception as _: # pylint: disable=broad-except
                 logger.log_error(f"Failed to convert {filename} again.")
 
 
-
+# pylint: disable=too-many-locals
 def _bi5_to_csv(from_directory: str, directory: str, filename: str, aggregation: str = '1min'):
     """
     Decode bi5 file and save as csv
     """
 
     if aggregation not in ['1min', '5min', '15min', '30min', '1H']:
-        raise ValueError("Invalid aggregation parameter. Must be one of '1min', '5min', '15min', '30min', '1H'")
+        raise ValueError("Invalid aggregation parameter."\
+                         "Must be one of '1min', '5min', '15min', '30min', '1H'")
 
     year, month, day, hour = filename.split('_')
     hour = hour.split('.')[0]
@@ -94,7 +97,8 @@ def _bi5_to_csv(from_directory: str, directory: str, filename: str, aggregation:
         }).reset_index()
 
         # Flatten the MultiIndex columns
-        df_resampled.columns = ['_'.join(col).strip() if col[1] else col[0] for col in df_resampled.columns.values]
+        df_resampled.columns = ['_'.join(col).strip() if col[1]\
+                                else col[0] for col in df_resampled.columns.values]
 
         # Rename the columns appropriately
         df_resampled.rename(columns={
@@ -115,7 +119,8 @@ def _bi5_to_csv(from_directory: str, directory: str, filename: str, aggregation:
         # Save the resampled data to CSV
         df_resampled.to_csv(f'{directory}/{year}_{int(month) + 1}_{day}_{hour}.csv', index=False)
 
-    except Exception as e:
+    except Exception as e: # pylint: disable=broad-except
+        # pylint: disable=unexpected-keyword-arg
         logger.log_exception(f"Failed to convert {filename}", exec_info=e)
         _update_failed_conversions(filename)
 
