@@ -7,7 +7,7 @@ setup-venv:
 	venv/bin/pip install git+https://github.com/DLR-RM/stable-baselines3
 
 train:
-	venv/bin/python brooksai/train_agent.py
+	PYTHONPATH=${shell pwd} venv/bin/python brooksai/train_agent.py
 
 lint:
 	venv/bin/pylint brooksai
