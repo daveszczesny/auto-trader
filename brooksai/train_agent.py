@@ -65,6 +65,5 @@ except FileNotFoundError:
     print("Agent created")
 
 # Train the agent
-for i in range(10):
-    model.learn(total_timesteps=5_000_000)
-    model.save('ppo_forex')
+model.learn(total_timesteps=5_000_000)
+model.save('ppo_forex')

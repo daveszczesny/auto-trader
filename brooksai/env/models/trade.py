@@ -29,7 +29,7 @@ class Trade:
                  stop_loss: Optional[float] = None,
                  take_profit: Optional[float] = None):
         self.uuid = str(uuid1())
-        self._lot_size = lot_size
+        self._lot_size = round(lot_size if lot_size > 0 else 0.01, 2)
         self._open_price = open_price
         self.trade_type = trade_type
         self.stop_loss = stop_loss
@@ -42,7 +42,7 @@ class Trade:
 
         if ENVIRONMENT == Environments.DEV:
             with open('brooksai_logs.txt', 'a') as f:
-                f.write(f"Trade {self.uuid} opened with lot size: {lot_size},"
+                f.write(f"Trade {self.uuid} opened with lot size: {self._lot_size},"
                         f"open price: {open_price}, trade type: {trade_type},"
                         f"SL: {self.stop_loss}, TP: {self.take_profit}\n")
         open_trades.append(self)
@@ -54,7 +54,7 @@ class Trade:
     @lot_size.setter
     def lot_size(self, value: float) -> None:
         if value < 0:
-            raise ValueError("Lot size must be positive")
+            value = 0.01
         self._lot_size = value
 
     @property
@@ -77,6 +77,13 @@ class Trade:
         # lot size * contract size * EUR TO GBP
         return ((self.lot_size * CONTRACT_SIZE) / LEVERAGE) * c.convert(1, 'EUR', 'GBP')
 
+def check_margin(lot_size: float) -> float:
+    """
+    Check if the margin is enough to open a trade
+    """
+    return ((lot_size * CONTRACT_SIZE) / LEVERAGE) * c.convert(1, 'EUR', 'GBP')
+
+
 def reset_open_trades():
     global open_trades
     open_trades.clear()
@@ -90,8 +97,8 @@ def get_trade_by_id(uuid: str) -> Optional[Trade]:
 def close_all_trades(current_price: float) -> float:
     global open_trades
     total_value: float = 0.0
-    for trade in open_trades:
-        total_value += close_trade(trade, current_price=current_price)
+    while len(open_trades) > 0:
+        total_value += close_trade(open_trades[0], current_price=current_price)
     return total_value
 
 def get_trade_profit(trade: Trade, current_price: float) -> float:
@@ -101,7 +108,7 @@ def get_trade_profit(trade: Trade, current_price: float) -> float:
     else:
         trade_profit_in_pips = trade.open_price - current_price
 
-    return pip_to_profit(trade_profit_in_pips, trade.lot_size)
+    return pip_to_profit(trade_profit_in_pips, trade.lot_size) * c.convert(1, 'USD', 'GBP')
 
 def get_trade_state(uuid: str, current_price: float) -> Dict[str, Union[str, float]]:
     trade = get_trade_by_id(uuid)
@@ -181,7 +188,7 @@ def close_trade(trade: Trade, current_price: Optional[float]) -> float:
 
     if ENVIRONMENT != Environments.PROD:
         with open('brooksai_logs.txt', 'a') as f:
-            f.write(f"Trade {trade.uuid}, TTL: {trade.ttl} closed with profit: {value}\n")
+            f.write(f"Trade {trade.uuid}, TTL: {trade.ttl} closed with profit: {round(value, 2)}\n")
 
     # TODO: Send request to broker to close trade
 

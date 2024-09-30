@@ -20,6 +20,7 @@ class Punishment(Enum):
     NO_TAKE_PROFIT = 15
     MARGIN_CALLED = 100
     NO_TRADE_WITHIN_WINDOW = 10
+    INSUFFICIENT_MARGIN = 5
 
 action_type_mapping = {
     0: ActionType.DO_NOTHING,
@@ -38,6 +39,7 @@ MAX_TRADES = 10
 class Environments(Enum):
     DEV = "dev"
     PROD = "prod"
+    TEST = "test"
 
 
 ENVIRONMENT = Environments.DEV
