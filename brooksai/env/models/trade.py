@@ -77,6 +77,13 @@ class Trade:
         # lot size * contract size * EUR TO GBP
         return ((self.lot_size * CONTRACT_SIZE) / LEVERAGE) * c.convert(1, 'EUR', 'GBP')
 
+def check_margin(lot_size: float) -> float:
+    """
+    Check if the margin is enough to open a trade
+    """
+    return ((lot_size * CONTRACT_SIZE) / LEVERAGE) * c.convert(1, 'EUR', 'GBP')
+
+
 def reset_open_trades():
     global open_trades
     open_trades.clear()
@@ -90,8 +97,8 @@ def get_trade_by_id(uuid: str) -> Optional[Trade]:
 def close_all_trades(current_price: float) -> float:
     global open_trades
     total_value: float = 0.0
-    for trade in open_trades:
-        total_value += close_trade(trade, current_price=current_price)
+    while len(open_trades) > 0:
+        total_value += close_trade(open_trades[0], current_price=current_price)
     return total_value
 
 def get_trade_profit(trade: Trade, current_price: float) -> float:

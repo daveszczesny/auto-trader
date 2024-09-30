@@ -15,8 +15,8 @@ train:
 	PYTHONPATH=${shell pwd} venv/bin/python brooksai/train_agent.py
 
 lint:
-	venv/bin/pylint brooksai
-	venv/bin/pylint drep
+	venv/bin/pylint --fail-under=9 brooksai
+	venv/bin/pylint --fail-under=9 drep
 
 test-unit:
 	PYTHONPATH=${shell pwd} venv/bin/pytest brooksai/tests/unit

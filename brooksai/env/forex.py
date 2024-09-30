@@ -7,7 +7,7 @@ import pandas as pd
 from currency_converter import CurrencyConverter
 
 from brooksai.env.models.trade import reset_open_trades, get_trade_state, close_trade, \
-    trigger_stop_or_take_profit, close_all_trades, Trade, open_trades
+    trigger_stop_or_take_profit, close_all_trades, check_margin, Trade, open_trades
 from brooksai.env.models.constants import TradeType, ActionType, Punishment, Fee, \
     DEFAULT_TRADE_WINDOW, action_type_mapping, MAX_TRADES
 from brooksai.env.models.action import Action, TradeAction
@@ -60,7 +60,6 @@ class ForexEnv(gym.Env):
         :param action: The action taken by the agent. (0: do nothing, 1: long, 2: short, 3: close)
         :return new observation, reward, done, info
         """
-        print(action)
         action: Action = self.construct_action(action)
 
         with open('brooksai_logs.txt', 'a') as f:
@@ -75,12 +74,7 @@ class ForexEnv(gym.Env):
 
         self.apply_actions(action)
 
-        self.unrealized_profit = sum(
-            pip_to_profit(self.current_price - trade.open_price, trade.lot_size) if
-            trade.trade_type == TradeType.LONG else
-            pip_to_profit(trade.open_price - self.current_price,
-                          trade.lot_size) for trade in open_trades
-        )
+        self.unrealized_profit = self.get_unrealized_profit()
 
 
         self.apply_environment_rules()
@@ -201,6 +195,12 @@ class ForexEnv(gym.Env):
 
         if len(open_trades) < MAX_TRADES and \
             action.action_type in [ActionType.LONG, ActionType.SHORT]:
+
+            # Verify that the agent has enough balance to open a trade
+            if check_margin(action.data.lot_size) > self.current_balance * 0.5:
+                self.reward -= Punishment.INSUFFICIENT_MARGIN.value
+                return
+
             Trade(
                 lot_size=action.data.lot_size,
                 open_price=self.current_price,
@@ -225,7 +225,7 @@ class ForexEnv(gym.Env):
         # Check if margin call is needed
         # Margin call is triggered if the current balance is less than the sum
         # of the margin for all trades plus the unrealised profit
-        if self.current_balance <= (self._calc_sum_margin() + self.unrealized_profit):
+        if self.current_balance <= (self._calc_sum_margin() - self.unrealized_profit):
             self._margin_call()
             self.reward -= Punishment.MARGIN_CALLED.value
 
@@ -241,6 +241,14 @@ class ForexEnv(gym.Env):
             trade.ttl -= 1
             if trade.ttl <= 0:
                 self.reward -= Fee.EXTRA_DAY_FEE.value
+
+    def get_unrealized_profit(self) -> float:
+        return sum(
+            pip_to_profit(self.current_price - trade.open_price, trade.lot_size) if
+            trade.trade_type == TradeType.LONG else
+            pip_to_profit(trade.open_price - self.current_price,
+                          trade.lot_size) for trade in open_trades
+        )
 
     def _margin_call(self) -> None:
         """

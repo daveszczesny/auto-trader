@@ -74,7 +74,7 @@ class EnvironmentText(unittest.TestCase):
 
         self.assertEqual(len(open_trades), 1)
 
-    def test_rest(self):
+    def test_reset(self):
         # Reset the environment
         observation, _ = self.env.reset()
 
@@ -134,3 +134,30 @@ class EnvironmentText(unittest.TestCase):
 
         self.assertEqual(len(open_trades), 0)
         self.assertNotEqual(self.env.current_balance, self.env.initial_balance)
+
+    def test_margin_call(self):
+        self.env.reset()
+
+        # Open a trade
+        raw_action = np.array([0.34, 2.5, -1, -1, 0], np.float32)
+        self.env.step(raw_action)
+        self.assertEqual(len(open_trades), 1)
+
+        # Plunge the price to trigger a margin call
+        self.env.current_price = 0.0
+        self.env.unrealized_profit = self.env.get_unrealized_profit()
+
+        self.env.apply_environment_rules()
+
+        # Margin call should have been triggered, and no trades should be open
+        self.assertEqual(len(open_trades), 0)
+
+    def test_trade_not_opened_with_excessive_lot_size(self):
+        self.env.reset()
+
+        # Open a trade with a lot size that is too large
+        raw_action = np.array([0.34, 1000, -1, -1, 0], np.float32)
+        self.env.step(raw_action)
+
+        self.assertEqual(len(open_trades), 0)
+
