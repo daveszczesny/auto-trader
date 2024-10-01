@@ -4,7 +4,7 @@ from typing import Optional, Union, List, Dict
 from currency_converter import CurrencyConverter
 
 from brooksai.env.models.constants import TradeType, Environments,\
-    DEFAULT_TRADE_TTL, ENVIRONMENT, CONTRACT_SIZE, LEVERAGE
+    ApplicationConstants
 from brooksai.env.utils.converter import pip_to_profit, pips_to_price_chart
 
 c = CurrencyConverter()
@@ -14,7 +14,7 @@ class Trade:
     The trade class represents one trade
     """
 
-    ttl: int = DEFAULT_TRADE_TTL # 10 days
+    ttl: int = ApplicationConstants.DEFAULT_TRADE_TTL # 10 days
     _lot_size: float
     _open_price: float
     _trade_type: TradeType
@@ -40,11 +40,11 @@ class Trade:
         if self.take_profit and self.take_profit < 0:
             self.take_profit = None
 
-        if ENVIRONMENT == Environments.DEV:
-            with open('brooksai_logs.txt', 'a') as f:
-                f.write(f"Trade {self.uuid} opened with lot size: {self._lot_size},"
-                        f"open price: {open_price}, trade type: {trade_type},"
-                        f"SL: {self.stop_loss}, TP: {self.take_profit}\n")
+        # if ENVIRONMENT == Environments.DEV:
+        #     with open('brooksai_logs.txt', 'a') as f:
+        #         f.write(f"Trade {self.uuid} opened with lot size: {self._lot_size},"
+        #                 f"open price: {open_price}, trade type: {trade_type},"
+        #                 f"SL: {self.stop_loss}, TP: {self.take_profit}\n")
         open_trades.append(self)
 
     @property
@@ -75,17 +75,16 @@ class Trade:
         """
         # Formula for pip to cost
         # lot size * contract size * EUR TO GBP
-        return ((self.lot_size * CONTRACT_SIZE) / LEVERAGE) * c.convert(1, 'EUR', 'GBP')
+        return ((self.lot_size * ApplicationConstants.CONTRACT_SIZE) / ApplicationConstants.LEVERAGE) * c.convert(1, 'EUR', 'GBP')
 
 def check_margin(lot_size: float) -> float:
     """
     Check if the margin is enough to open a trade
     """
-    return ((lot_size * CONTRACT_SIZE) / LEVERAGE) * c.convert(1, 'EUR', 'GBP')
+    return ((lot_size * ApplicationConstants.CONTRACT_SIZE) / ApplicationConstants.LEVERAGE) * c.convert(1, 'EUR', 'GBP')
 
 
 def reset_open_trades():
-    global open_trades
     open_trades.clear()
 
 def get_trade_by_id(uuid: str) -> Optional[Trade]:
@@ -123,48 +122,41 @@ def get_trade_state(uuid: str, current_price: float) -> Dict[str, Union[str, flo
     }
 
 
-def trigger_stop_or_take_profit(current_price: float) -> float:
+def trigger_stop_or_take_profit(current_high: float, current_low: float) -> float:
 
     """
-    This method checks if the current price has hit the stop loss or take profit of a trade
+    This method checks if the current high or low has hit the stop loss or take profit of a trade
 
     This method is not necessary when using prod environment since the broker will handle this
 
-    :param current_price: The current price of the asset
+    :param current_high: The current high price
+    :param current_low: The current low price
     :return: The total value of all trades closed by the stop loss or take profit
     """
 
-    if ENVIRONMENT == Environments.PROD:
-        return 0.0
-
-    global open_trades
-
     total_value: float = 0.0
     for trade in open_trades:
-        # Check if take profit or stop loss is hit
-        # stop loss and take profit are in pips so we must convert them to the price chart
-        # add or subtract them from open price
-        if trade.trade_type == TradeType.LONG:
-            take_profit_price = trade.open_price +\
+        if trade.trade_type is TradeType.LONG:
+            tp_chart_price = trade.open_price +\
                 pips_to_price_chart(trade.take_profit) if trade.take_profit else None
-            stop_loss_price = trade.open_price -\
+            sl_chart_price = trade.open_price -\
                 pips_to_price_chart(trade.stop_loss) if trade.stop_loss else None
 
-            if take_profit_price and current_price >= take_profit_price:
-                total_value += close_trade(trade, take_profit_price)
-            elif stop_loss_price and current_price <= stop_loss_price:
-                total_value += close_trade(trade, stop_loss_price)
+            if tp_chart_price and current_high >= tp_chart_price:
+                total_value += close_trade(trade, tp_chart_price)
+            elif sl_chart_price and current_low <= sl_chart_price:
+                total_value += close_trade(trade, sl_chart_price)
 
-        elif trade.trade_type == TradeType.SHORT:
-            take_profit_price = trade.open_price -\
+        elif trade.trade_type is TradeType.SHORT:
+            tp_chart_price = trade.open_price -\
                 pips_to_price_chart(trade.take_profit) if trade.take_profit else None
-            stop_loss_price = trade.open_price +\
+            sl_chart_price = trade.open_price +\
                 pips_to_price_chart(trade.stop_loss) if trade.stop_loss else None
 
-            if take_profit_price and current_price <= take_profit_price:
-                total_value += close_trade(trade, take_profit_price)
-            elif stop_loss_price  and current_price >= stop_loss_price:
-                total_value += close_trade(trade, stop_loss_price)
+            if tp_chart_price and current_low <= tp_chart_price:
+                total_value += close_trade(trade, tp_chart_price)
+            elif sl_chart_price and current_high >= sl_chart_price:
+                total_value += close_trade(trade, sl_chart_price)
 
     return total_value
 
@@ -186,9 +178,9 @@ def close_trade(trade: Trade, current_price: Optional[float]) -> float:
     value: float = get_trade_profit(trade, current_price)
     open_trades.remove(trade)
 
-    if ENVIRONMENT != Environments.PROD:
-        with open('brooksai_logs.txt', 'a') as f:
-            f.write(f"Trade {trade.uuid}, TTL: {trade.ttl} closed with profit: {round(value, 2)}\n")
+    # if ENVIRONMENT != Environments.PROD:
+    #     with open('brooksai_logs.txt', 'a') as f:
+    #         f.write(f"Trade {trade.uuid}, TTL: {trade.ttl} closed with profit: {round(value, 2)}\n")
 
     # TODO: Send request to broker to close trade
 

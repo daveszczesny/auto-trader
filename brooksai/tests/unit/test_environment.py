@@ -6,7 +6,7 @@ import pandas.testing as pdt
 import numpy as np
 
 from brooksai.env.forex import ForexEnv
-from brooksai.env.models.constants import MAX_TRADES, ActionType, DEFAULT_TRADE_TTL
+from brooksai.env.models.constants import ApplicationConstants, ActionType
 from brooksai.env.models.trade import open_trades, TradeType, close_trade
 
 class EnvironmentText(unittest.TestCase):
@@ -20,12 +20,12 @@ class EnvironmentText(unittest.TestCase):
         pdt.assert_frame_equal(self.env.data, pd.read_csv(self.data_path))
 
         # Test if observation space is set correctly
-        self.assertEqual(self.env.observation_space.shape, (8 + MAX_TRADES, ))
+        self.assertEqual(self.env.observation_space.shape, (8 + ApplicationConstants.MAX_TRADES, ))
         self.assertEqual(self.env.observation_space.dtype, np.float32)
 
         # Test if the action space is set correctly
         self.assertTrue(np.array_equal(self.env.action_space.low, np.array([0.0, 0.01, -1.0, -1.0, 0.0], dtype=np.float32)))
-        self.assertTrue(np.array_equal(self.env.action_space.high, np.array([1.0, 1.0, 300.0, 300.0, MAX_TRADES - 1], dtype=np.float32)))
+        self.assertTrue(np.array_equal(self.env.action_space.high, np.array([1.0, 1.0, 300.0, 300.0, ApplicationConstants.MAX_TRADES - 1], dtype=np.float32)))
         self.assertEqual(self.env.action_space.dtype, np.float32)
 
         # Test initial agent variables
@@ -128,7 +128,7 @@ class EnvironmentText(unittest.TestCase):
         self.env.step(raw_action)
 
         trade = open_trades[0]
-        self.assertNotEqual(trade.ttl, DEFAULT_TRADE_TTL)
+        self.assertNotEqual(trade.ttl, ApplicationConstants.DEFAULT_TRADE_TTL)
 
         self.env.current_balance += close_trade(trade, self.env.current_price)
 

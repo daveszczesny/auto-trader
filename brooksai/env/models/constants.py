@@ -29,17 +29,19 @@ action_type_mapping = {
     3: ActionType.CLOSE
 }
 
-DEFAULT_TRADE_TTL = 14_400 # 10 days
-DEFAULT_TRADE_WINDOW = 4320 # 3 days
-CONTRACT_SIZE = 100_000
-LEVERAGE = 500
-MARGIN_LIMIT = 0.5
-MAX_TRADES = 10
+
+class ApplicationConstants:
+    DEFAULT_TRADE_TTL = 14_400 # 10 days
+    DEFAULT_TRADE_WINDOW = 4320 # 3 days
+    CONTRACT_SIZE = 100_000
+    LEVERAGE = 500
+    MARGIN_LIMIT = 0.5
+    MAX_TRADES = 10
+    TP_AND_SL_SCALE_FACTOR = 200
+    SIMPLE_MAX_TRADES = 1
 
 class Environments(Enum):
     DEV = "dev"
     PROD = "prod"
     TEST = "test"
 
-
-ENVIRONMENT = Environments.DEV
