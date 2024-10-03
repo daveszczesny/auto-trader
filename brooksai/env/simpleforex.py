@@ -14,7 +14,11 @@ from brooksai.env.models.constants import TradeType, ActionType, Punishment, Fee
 from brooksai.env.models.action import Action, TradeAction
 from brooksai.env.utils.converter import pip_to_profit
 
+from brooksai.env.services.logs.logger import Logger
+
 c = CurrencyConverter()
+
+logger = Logger()
 
 class SimpleForexEnv(gym.Env):
     """
@@ -92,15 +96,9 @@ class SimpleForexEnv(gym.Env):
         if self.done:
             self.current_balance += close_all_trades(self.current_price)
 
-
-        # with open('brooksai_logs.txt', 'a') as f:
-        #     f.write(f"Step: {self.current_step}, Account balance: {self.current_balance}\n")
-        #     if action.action_type in [ActionType.LONG, ActionType.SHORT]:
-        #         f.write(f"Trade opened with lot size: {action.data.lot_size},")
-        #     if action.action_type is ActionType.CLOSE and action.trade:
-        #         f.write(f"Trade closed with profit: {get_trade_profit(action.trade, self.current_price)}\n")
-
         self.current_step += 1
+
+        logger.log(f"Step: {self.current_step}, Balance: {self.current_balance}, Unrealised PnL: {self.unrealised_pnl}, Reward: {self.reward}, Trades Open: {len(open_trades)}")
 
         return self._get_observation(), self.reward, self.done, False, {}
 
@@ -133,6 +131,8 @@ class SimpleForexEnv(gym.Env):
         # Reset agent variables
         self.current_balance = self.initial_balance
         self.unrealised_pnl = 0.0
+
+        logger.create_new_log_file()
 
         return self._get_observation(), {}
 
@@ -268,8 +268,6 @@ class SimpleForexEnv(gym.Env):
             self.reward -= Punishment.NO_TRADE_WITHIN_WINDOW
         elif self.trade_window < 0:
             self.reward += Punishment.NO_TRADE_WITHIN_WINDOW * self.trade_window
-
-        self.reward = 2 * (self.reward - ApplicationConstants.MINIMUM_REWARD) / (ApplicationConstants.MAXIMUM_REWARD - ApplicationConstants.MINIMUM_REWARD) - 1
 
     def apply_environment_rules(self) -> None:
         """
