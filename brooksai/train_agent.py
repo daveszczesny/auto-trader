@@ -31,5 +31,6 @@ except Exception as _:
     print("Agent created")
 
 # Train the agent
-model.learn(total_timesteps=500_000)
-model.save('ppo_forex')
+for _ in range(10):
+    model.learn(total_timesteps=500_000)
+    model.save('ppo_forex')

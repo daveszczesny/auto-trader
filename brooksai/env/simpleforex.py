@@ -7,10 +7,10 @@ from gymnasium import spaces
 
 from currency_converter import CurrencyConverter
 
-from brooksai.env.models.trade import reset_open_trades, get_trade_state, close_trade,\
+from brooksai.env.models.trade import reset_open_trades, get_trade_profit, close_trade,\
     trigger_stop_or_take_profit, close_all_trades, check_margin, Trade, open_trades
 from brooksai.env.models.constants import TradeType, ActionType, Punishment, Fee,\
-    ApplicationConstants, action_type_mapping
+    ApplicationConstants, Reward, action_type_mapping
 from brooksai.env.models.action import Action, TradeAction
 from brooksai.env.utils.converter import pip_to_profit
 
@@ -60,6 +60,7 @@ class SimpleForexEnv(gym.Env):
 
         self.reward: float = 0.0
         self.trade_window: int = ApplicationConstants.DEFAULT_TRADE_WINDOW
+        self.done: bool = False
 
         # Agent variables
         self.initial_balance: float = initial_balance
@@ -72,7 +73,6 @@ class SimpleForexEnv(gym.Env):
         action: Action = self.construct_action(action)
 
         self.reward = 0.0
-        self.previous_balance = self.current_balance
 
         self.current_price = self.data.iloc[self.current_step]['bid_close']
         self.current_high = self.data.iloc[self.current_step]['bid_high']
@@ -80,30 +80,29 @@ class SimpleForexEnv(gym.Env):
         self.current_emas = self.data.iloc[self.current_step][['EMA_200', 'EMA_50', 'EMA_21']]
 
         trigger_stop_or_take_profit(self.current_high, self.current_low)
+        self.calculate_reward(action)
+        self.previous_balance = self.current_balance
 
         self.apply_actions(action)
 
         self.unrealised_pnl = self._get_unrealized_pnl()
 
-        # apply rules
-        self.apply_environment_rules()
+        self.done = self.current_step == self.n_steps - 1 or self.current_balance <= check_margin(0.01)
 
-        done = False
-        if self.current_step == self.n_steps - 1:
-            self.reward += 100  # Reward for completing the game
-            done = True
-        elif self.current_balance <= 0:
-            self.reward -= 100 # Punishment for running out of money
-            done = True
-
-        if done:
+        if self.done:
             self.current_balance += close_all_trades(self.current_price)
+
+
+        # with open('brooksai_logs.txt', 'a') as f:
+        #     f.write(f"Step: {self.current_step}, Account balance: {self.current_balance}\n")
+        #     if action.action_type in [ActionType.LONG, ActionType.SHORT]:
+        #         f.write(f"Trade opened with lot size: {action.data.lot_size},")
+        #     if action.action_type is ActionType.CLOSE and action.trade:
+        #         f.write(f"Trade closed with profit: {get_trade_profit(action.trade, self.current_price)}\n")
 
         self.current_step += 1
 
-        reward = self.current_balance + self.unrealised_pnl + self.reward
-
-        return self._get_observation(), reward, done, False, {}
+        return self._get_observation(), self.reward, self.done, False, {}
 
 
     def reset(self,
@@ -142,7 +141,7 @@ class SimpleForexEnv(gym.Env):
         :return: Action
         """
 
-        action_type = action_type_mapping.get(int(raw_action[0]), ActionType.DO_NOTHING)
+        action_type = action_type_mapping.get(int(raw_action[0] * 3), ActionType.DO_NOTHING)
 
         if action_type in [ActionType.LONG, ActionType.SHORT]:
             if raw_action[1] is None:
@@ -194,9 +193,13 @@ class SimpleForexEnv(gym.Env):
             return action
 
     def apply_actions(self, action: Action) -> None:
+        """
+        Apply Agent actions to the environment
+        :param action: Action
+        """
+
         if action.action_type is ActionType.DO_NOTHING:
             return
-
 
         if len(open_trades) < ApplicationConstants.SIMPLE_MAX_TRADES\
             and action.action_type in [ActionType.LONG, ActionType.SHORT]:
@@ -208,16 +211,46 @@ class SimpleForexEnv(gym.Env):
                 stop_loss=None,
                 take_profit=None
             )
-        
+
         elif action.action_type is ActionType.CLOSE:
             self.current_balance += close_trade(action.trade, self.current_price)
 
-    def apply_environment_rules(self) -> None:
+
+    def calculate_reward(self, action: Action) -> float:
         """
-        Apply the environment rules
+        Reward function for agent actions
+        :param action: Action
+        :return: float
         """
 
+        # Check if agent tried to make a trade, but couldn't
+        if action.action_type in [ActionType.LONG, ActionType.SHORT]:
+            if len(open_trades) >= ApplicationConstants.SIMPLE_MAX_TRADES:
+                self.reward -= Punishment.MAX_TRADES_REACHED
+            else:
+                self.reward += Reward.TRADE_OPENED
+
+        elif action.action_type is ActionType.CLOSE:
+            if action.trade is None:
+                self.reward -= 1
+            else:
+                self.reward += Reward.TRADE_CLOSED
+
+                if action.trade.ttl > 0:
+                    self.reward += Reward.TRADE_CLOSED_WITHIN_TTL
+
+                if get_trade_profit(action.trade, self.current_price) > 0:
+                    self.reward += Reward.TRADE_CLOSED_IN_PROFIT
+
+        if not self.done and self.current_step == self.n_steps - 1:
+            self.reward += Reward.COMPLETED_RUN
+        
+        # Check if agent has run out of money to trade
+        if self.current_balance < check_margin(0.01):
+            self.reward -= Punishment.INSUFFICIENT_FUNDS
+
         # Check if Agent has a long lasting trade
+        # if trade is open for more than permitted days, decrease the reward
         for trade in open_trades:
             trade.ttl -= 1
             if trade.ttl <= 0:
@@ -226,13 +259,21 @@ class SimpleForexEnv(gym.Env):
         # Check margin call
         if self.current_balance <= (self._calc_sum_margin() - self.unrealised_pnl):
             self.current_balance += sum(close_trade(trade,self.current_balance) for trade in open_trades)
-            self.reward -= Punishment.MARGIN_CALLED.value
+            self.reward -= Punishment.MARGIN_CALLED
         
         # Check if agent has not traded within the trade window
         if self.trade_window == 0:
-            self.reward -= Punishment.NO_TRADE_WITHIN_WINDOW.value
+            self.reward -= Punishment.NO_TRADE_WITHIN_WINDOW
         elif self.trade_window < 0:
-            self.reward += Punishment.NO_TRADE_WITHIN_WINDOW.value * self.trade_window
+            self.reward += Punishment.NO_TRADE_WITHIN_WINDOW * self.trade_window
+
+        self.reward = 2 * (self.reward - ApplicationConstants.MINIMUM_REWARD) / (ApplicationConstants.MAXIMUM_REWARD - ApplicationConstants.MINIMUM_REWARD) - 1
+
+    def apply_environment_rules(self) -> None:
+        """
+        Apply the environment rules
+        """
+        pass
 
     def _calc_sum_margin(self) -> float:
         return sum(trade.get_margin() for trade in open_trades)

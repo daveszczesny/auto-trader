@@ -184,6 +184,6 @@ def close_trade(trade: Trade, current_price: Optional[float]) -> float:
 
     # TODO: Send request to broker to close trade
 
-    return value
+    return value - ApplicationConstants.TRANSACTION_FEE
 
 open_trades: List[Trade] = []

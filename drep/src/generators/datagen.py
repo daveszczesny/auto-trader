@@ -9,15 +9,16 @@ This module will be used to generate data for the environment
 
 class DataGenerator:
     
-    def __init__(self, n_steps: int, base_price: float, noise: float = 0.0, min_price: float = 0.1):
+    def __init__(self, n_steps: int, base_price: float, noise: float = 0.0, min_price: float = 0.1, frequency: float = 0.001):
         self.n_steps = n_steps
         self.base_price = base_price
         self.noise = noise
         self.min_price = min_price
+        self.frequency = frequency
 
     def generate_data(self):
         time = np.arange(self.n_steps)
-        bid_close = self.base_price + 0.0001 * np.sin(time) + np.random.normal(0, self.noise, self.n_steps)
+        bid_close = self.base_price + 0.0001 * np.sin(self.frequency * time) + np.random.normal(0, self.noise, self.n_steps)
         bid_close = np.maximum(bid_close, self.min_price)
         bid_high = bid_close + np.random.uniform(0.01, 0.05, self.n_steps)
         bid_low = bid_close - np.random.uniform(0.01, 0.05, self.n_steps)
@@ -38,7 +39,7 @@ class DataGenerator:
 
 
 # Example usage
-dg = DataGenerator(n_steps=1000, base_price=1.2, noise=0.0, min_price=0.1)
+dg = DataGenerator(n_steps=1_000_000, base_price=1.5, noise=0.5, min_price=0.2, frequency=0.001)
 df = dg.generate_data()
 print(df.head())
 

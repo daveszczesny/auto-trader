@@ -159,9 +159,9 @@ class ForexEnv(gym.Env):
 
             # Penalise for setting small stop loss or take profit
             if stop_loss and stop_loss < 5:
-                self.reward -= Punishment.NO_STOP_LOSS.value
+                self.reward -= Punishment.NO_STOP_LOSS
             if take_profit and take_profit < 5:
-                self.reward -= Punishment.NO_TAKE_PROFIT.value
+                self.reward -= Punishment.NO_TAKE_PROFIT
 
             trade_action = TradeAction(
                 stop_loss=stop_loss,
@@ -202,7 +202,7 @@ class ForexEnv(gym.Env):
 
             # Verify that the agent has enough balance to open a trade
             if check_margin(action.data.lot_size) > self.current_balance * 0.5:
-                self.reward -= Punishment.INSUFFICIENT_MARGIN.value
+                self.reward -= Punishment.INSUFFICIENT_MARGIN
                 return
 
             Trade(
@@ -216,9 +216,9 @@ class ForexEnv(gym.Env):
 
             # Penalise for not setting stop loss or take profit
             if action.data.stop_loss is None:
-                self.reward -= Punishment.NO_STOP_LOSS.value
+                self.reward -= Punishment.NO_STOP_LOSS
             if action.data.take_profit is None:
-                self.reward -= Punishment.NO_TAKE_PROFIT.value
+                self.reward -= Punishment.NO_TAKE_PROFIT
 
         elif action.action_type == ActionType.CLOSE:
             self.current_balance += close_trade(action.trade, self.current_price)
@@ -231,7 +231,7 @@ class ForexEnv(gym.Env):
         # of the margin for all trades plus the unrealised profit
         if self.current_balance <= (self._calc_sum_margin() - self.unrealized_profit):
             self._margin_call()
-            self.reward -= Punishment.MARGIN_CALLED.value
+            self.reward -= Punishment.MARGIN_CALLED
 
         self._check_trade_window()
 
@@ -280,9 +280,9 @@ class ForexEnv(gym.Env):
         Check if a trade was opened within the trade window
         """
         if self.trade_window == 0:
-            self.reward -= Punishment.NO_TRADE_WITHIN_WINDOW.value
+            self.reward -= Punishment.NO_TRADE_WITHIN_WINDOW
         elif self.trade_window < 0:
-            self.trade_window += Punishment.NO_TRADE_WITHIN_WINDOW.value * self.trade_window
+            self.trade_window += Punishment.NO_TRADE_WITHIN_WINDOW * self.trade_window
 
     def _get_observation(self) -> np.array:
         """
