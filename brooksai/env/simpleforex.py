@@ -104,6 +104,8 @@ class SimpleForexEnv(gym.Env):
 
         return self._get_observation(), self.reward, self.done, False, {}
 
+    def render(self, mode: str = 'human') -> None:
+        pass
 
     def reset(self,
               seed: Optional[int] = None,
