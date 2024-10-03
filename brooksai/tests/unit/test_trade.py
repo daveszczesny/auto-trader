@@ -117,7 +117,10 @@ class TradeTest(unittest.TestCase):
         self.assertEqual(len(trade_module.open_trades), 9)
         self.assertEqual(mock_close_trade.call_count, 1)
 
+        print(len(trade_module.open_trades))
         trade_module.close_all_trades(1.2)
+        print(mock_close_trade.call_count)
+        print(len(trade_module.open_trades))
         self.assertEqual(len(trade_module.open_trades), 0)
         self.assertEqual(mock_close_trade.call_count, 10)
 

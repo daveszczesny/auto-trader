@@ -94,10 +94,10 @@ def get_trade_by_id(uuid: str) -> Optional[Trade]:
     return None
 
 def close_all_trades(current_price: float) -> float:
-    global open_trades
     total_value: float = 0.0
     while len(open_trades) > 0:
         total_value += close_trade(open_trades[0], current_price=current_price)
+
     return total_value
 
 def get_trade_profit(trade: Trade, current_price: float) -> float:

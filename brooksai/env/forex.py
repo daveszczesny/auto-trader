@@ -244,7 +244,7 @@ class ForexEnv(gym.Env):
         for trade in open_trades:
             trade.ttl -= 1
             if trade.ttl <= 0:
-                self.reward -= Fee.EXTRA_DAY_FEE.value
+                self.reward -= Fee.EXTRA_DAY_FEE
 
     def get_unrealized_profit(self) -> float:
         return sum(
@@ -265,7 +265,7 @@ class ForexEnv(gym.Env):
         value: float = 0.0
         for trade in open_trades:
             value += close_trade(trade, self.current_price)
-            value -= Fee.TRANSACTION_FEE.value
+            value -= Fee.TRANSACTION_FEE
 
         self.current_balance += value
 
