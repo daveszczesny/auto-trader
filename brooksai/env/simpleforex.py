@@ -1,4 +1,4 @@
-from typing import Tuple, Optional, Any
+from typing import Tuple, Optional, List
 
 import pandas as pd
 import numpy as np
@@ -20,6 +20,7 @@ c = CurrencyConverter()
 
 logger = Logger()
 
+# pylint: disable=too-many-instance-attributes
 class SimpleForexEnv(gym.Env):
     """
     Custom starting Environment for forex trading
@@ -32,7 +33,10 @@ class SimpleForexEnv(gym.Env):
     """
 
 
-    def __init__(self, data: str, initial_balance: float = 1_000, render_mode: Optional[str] = None):
+    def __init__(self,
+                 data: str,
+                 initial_balance: float = 1_000,
+                 render_mode: Optional[str] = None):
 
         self.data = pd.read_csv(data)
 
@@ -52,7 +56,8 @@ class SimpleForexEnv(gym.Env):
         # action taken, lot size, stop loss, take profit, trade index to close
         self.action_space = spaces.Box(
             low = np.array([0.0, 0.01, -1.0, -1.0, 0.0], dtype=np.float32),
-            high = np.array([1.0, 1.0, 1.0, 1.0, ApplicationConstants.SIMPLE_MAX_TRADES - 1], dtype=np.float32),
+            high = np.array([1.0, 1.0, 1.0, 1.0, ApplicationConstants.SIMPLE_MAX_TRADES - 1],
+                            dtype=np.float32),
             dtype=np.float32
         )
 
@@ -62,9 +67,12 @@ class SimpleForexEnv(gym.Env):
         self.current_low: float = self.data.iloc[self.current_step]['bid_low']
         self.current_emas = self.data.iloc[self.current_step][['EMA_200', 'EMA_50', 'EMA_21']]
 
+        self.previous_unrealized_pnl: List[float] = []
         self.reward: float = 0.0
         self.trade_window: int = ApplicationConstants.DEFAULT_TRADE_WINDOW
         self.done: bool = False
+        self.max_reward = float('-inf')
+        self.min_reward = float('inf')
 
         # Agent variables
         self.initial_balance: float = initial_balance
@@ -86,19 +94,23 @@ class SimpleForexEnv(gym.Env):
         trigger_stop_or_take_profit(self.current_high, self.current_low)
         self.calculate_reward(action)
         self.previous_balance = self.current_balance
-
         self.apply_actions(action)
 
         self.unrealised_pnl = self._get_unrealized_pnl()
 
-        self.done = self.current_step == self.n_steps - 1 or self.current_balance <= check_margin(0.01)
+        self.done = self.current_step == self.n_steps - 1 or \
+            self.current_balance * 0.5 <= check_margin(0.01)
 
         if self.done:
             self.current_balance += close_all_trades(self.current_price)
+            self.previous_unrealized_pnl.clear()
 
         self.current_step += 1
 
-        logger.log(f"Step: {self.current_step}, Balance: {self.current_balance}, Unrealised PnL: {self.unrealised_pnl}, Reward: {self.reward}, Trades Open: {len(open_trades)}")
+        logger.log(f"Step: {self.current_step}, Action: {action.action_type}, "
+                   f"Balance: {round(self.current_balance, 2)}, "
+                   f"Unrealised PnL: {round(self.unrealised_pnl, 2)}, "
+                   f"Reward: {round(self.reward, 3)}, Trades Open: {len(open_trades)}")
 
         return self._get_observation(), self.reward, self.done, False, {}
 
@@ -125,8 +137,11 @@ class SimpleForexEnv(gym.Env):
         self.current_emas = self.data.iloc[self.current_step][['EMA_200', 'EMA_50', 'EMA_21']]
         self.reward = 0.0
         self.trade_window = ApplicationConstants.DEFAULT_TRADE_WINDOW
+        self.max_reward = float('-inf')
+        self.min_reward = float('inf')
 
         reset_open_trades()
+        self.previous_unrealized_pnl.clear()
 
         # Reset agent variables
         self.current_balance = self.initial_balance
@@ -143,7 +158,8 @@ class SimpleForexEnv(gym.Env):
         :return: Action
         """
 
-        action_type = action_type_mapping.get(int(raw_action[0] * 3), ActionType.DO_NOTHING)
+        action_type = action_type_mapping.get(int(raw_action[0] * len(action_type_mapping)), \
+                                              ActionType.DO_NOTHING)
 
         if action_type in [ActionType.LONG, ActionType.SHORT]:
             if raw_action[1] is None:
@@ -182,12 +198,13 @@ class SimpleForexEnv(gym.Env):
             if trade is None:
                 action = Action(action_type=ActionType.DO_NOTHING)
                 return action
-            
+
             action = Action(
                 action_type=action_type,
                 data=None,
                 trade=trade
             )
+            self.trade_window = ApplicationConstants.DEFAULT_TRADE_WINDOW
             return action
         else:
             self.trade_window -= 1
@@ -209,13 +226,19 @@ class SimpleForexEnv(gym.Env):
             Trade(
                 lot_size=action.data.lot_size,
                 open_price=self.current_price,
-                trade_type=TradeType.LONG if action.action_type is ActionType.LONG else TradeType.SHORT,
+                trade_type=TradeType.LONG if action.action_type is ActionType.LONG \
+                    else TradeType.SHORT,
                 stop_loss=None,
                 take_profit=None
             )
 
         elif action.action_type is ActionType.CLOSE:
-            self.current_balance += close_trade(action.trade, self.current_price)
+            if action.trade is not None:
+                logger.log(f"Closing trade {action.trade.trade_type}."
+                           f"Opened: {action.trade.open_price}, "
+                           f"Closed: {self.current_price}. "
+                           f"Profit: {get_trade_profit(action.trade, self.current_price)}")
+                self.current_balance += close_trade(action.trade, self.current_price)
 
 
     def calculate_reward(self, action: Action) -> float:
@@ -225,49 +248,124 @@ class SimpleForexEnv(gym.Env):
         :return: float
         """
 
+        self.reward = 0.0
+        unrealized_pnl = self._get_unrealized_pnl()
+        # 10 percent of the current balance
+        significant_loss_threshold = self.current_balance * 0.1
+
+        if len(self.previous_unrealized_pnl) > 0:
+            max_pnl = max(self.previous_unrealized_pnl)
+            mean_pnl = np.mean(self.previous_unrealized_pnl)
+            min_pnl = min(self.previous_unrealized_pnl)
+            # Define a threshold for significant losses
+            significant_loss_threshold = - (self.current_balance * 0.1)
+
+            # Only give positive rewards for unrealized profit if the agent does nothing
+            if unrealized_pnl > 0  and action.action_type is ActionType.DO_NOTHING:
+                if unrealized_pnl > max_pnl:
+                    self.reward += Reward.UNREALIZED_PROFIT * unrealized_pnl
+                elif unrealized_pnl > mean_pnl:
+                    self.reward += Reward.UNREALIZED_PROFIT * (unrealized_pnl / 2)
+                elif unrealized_pnl < mean_pnl:
+                    self.reward -= Punishment.MISSED_PROFIT
+                elif unrealized_pnl < min_pnl:
+                    self.reward -= Punishment.UNREALIZED_LOSS * unrealized_pnl
+            else:
+                if unrealized_pnl < significant_loss_threshold:
+                    self.reward -= Punishment.SIGNIFICANT_LOSS * abs(unrealized_pnl)
+                elif unrealized_pnl < min_pnl:
+                    self.reward -= Punishment.UNREALIZED_LOSS * abs(unrealized_pnl)
+                elif unrealized_pnl < mean_pnl:
+                    self.reward -= Punishment.UNREALIZED_LOSS * (abs(unrealized_pnl) / 2)
+                else:
+                    self.reward -= Punishment.UNREALIZED_LOSS * abs(unrealized_pnl)
+
+            self.previous_unrealized_pnl.append(unrealized_pnl)
+        elif action.action_type is ActionType.DO_NOTHING:
+            self.reward += Reward.SMALL_REWARD_FOR_DOING_NOTHING
+            if unrealized_pnl > 0:
+                self.reward += Reward.UNREALIZED_PROFIT * unrealized_pnl
+            else:
+                self.reward -= Punishment.UNREALIZED_LOSS * unrealized_pnl
+
+        self.previous_unrealized_pnl.append(unrealized_pnl)
+        self.previous_unrealized_pnl = self.previous_unrealized_pnl[-30:]
+
         # Check if agent tried to make a trade, but couldn't
         if action.action_type in [ActionType.LONG, ActionType.SHORT]:
             if len(open_trades) >= ApplicationConstants.SIMPLE_MAX_TRADES:
-                self.reward -= Punishment.MAX_TRADES_REACHED
+                self.reward -= Punishment.INVALID_ACTION
             else:
                 self.reward += Reward.TRADE_OPENED
 
         elif action.action_type is ActionType.CLOSE:
             if action.trade is None:
-                self.reward -= 1
+                self.reward -= Punishment.INVALID_ACTION
             else:
                 self.reward += Reward.TRADE_CLOSED
+
+                self.previous_unrealized_pnl.clear()
 
                 if action.trade.ttl > 0:
                     self.reward += Reward.TRADE_CLOSED_WITHIN_TTL
 
-                if get_trade_profit(action.trade, self.current_price) > 0:
+                if get_trade_profit(action.trade, self.current_price) > Fee.TRANSACTION_FEE:
                     self.reward += Reward.TRADE_CLOSED_IN_PROFIT
+                else:
+                    self.reward -= Punishment.TRADE_CLOSED_IN_LOSS
 
         if not self.done and self.current_step == self.n_steps - 1:
             self.reward += Reward.COMPLETED_RUN
-        
+
         # Check if agent has run out of money to trade
-        if self.current_balance < check_margin(0.01):
+        if self.current_balance * 0.5 < check_margin(0.01):
             self.reward -= Punishment.INSUFFICIENT_FUNDS
+
+        # Check margin call
+        if self.current_balance * 0.5 <= (self._calc_sum_margin() - self.unrealised_pnl):
+            self.previous_unrealized_pnl.clear()
+            self.current_balance += close_all_trades(self.current_price)
+            open_trades.clear()
+            self.reward -= Punishment.MARGIN_CALLED
+            logger.log("Margin Called. All trades closed")
+
+        # Check if agent has not traded within the trade window
+        if self.trade_window != ApplicationConstants.DEFAULT_TRADE_WINDOW and len(open_trades) == 0:
+            self.reward -= 0.05 * abs(
+                ApplicationConstants.DEFAULT_TRADE_WINDOW - abs(self.trade_window)
+                )
+        if self.trade_window == 0 and len(open_trades) == 0:
+            self.reward -= Punishment.NO_TRADE_WITHIN_WINDOW
+        elif self.trade_window < 0 and len(open_trades) == 0:
+            self.reward += Punishment.NO_TRADE_WITHIN_WINDOW * self.trade_window
 
         # Check if Agent has a long lasting trade
         # if trade is open for more than permitted days, decrease the reward
         for trade in open_trades:
             trade.ttl -= 1
+            # If trade is open for more than 10 days, decrease the reward (within 1 day)
             if trade.ttl <= 0:
-                self.reward -= Fee.EXTRA_DAY_FEE.value
+                self.reward -= (Fee.EXTRA_DAY_FEE * abs(trade.ttl))
 
-        # Check margin call
-        if self.current_balance <= (self._calc_sum_margin() - self.unrealised_pnl):
-            self.current_balance += sum(close_trade(trade,self.current_balance) for trade in open_trades)
-            self.reward -= Punishment.MARGIN_CALLED
-        
-        # Check if agent has not traded within the trade window
-        if self.trade_window == 0:
-            self.reward -= Punishment.NO_TRADE_WITHIN_WINDOW
-        elif self.trade_window < 0:
-            self.reward += Punishment.NO_TRADE_WITHIN_WINDOW * self.trade_window
+        # Normalise the reward
+        self.max_reward = max(self.max_reward, self.reward)
+        self.min_reward = min(self.min_reward, self.reward)
+
+        for trade in open_trades:
+            # If trade is open for more than 10 days + 1 day overdraft, set reward to -1
+            if trade.ttl <= ApplicationConstants.TRADE_TTL_OVERDRAFT_LIMIT:
+                self.reward = -2
+                logger.log(f"Trade {trade.uuid} has been open for too long. Agent must close trade")
+                return
+
+
+        normalized_reward: float = 0
+        if self.max_reward != self.min_reward:
+            normalized_reward = (self.reward - self.min_reward) / (self.max_reward - self.min_reward) * 2 - 1
+        else:
+            normalized_reward = 0
+
+        self.reward = normalized_reward
 
     def apply_environment_rules(self) -> None:
         """

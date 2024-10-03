@@ -3,5 +3,6 @@ venv/
 __pycache__/
 *.zip
 resources/
+logs/
 
 !requirements.txt
