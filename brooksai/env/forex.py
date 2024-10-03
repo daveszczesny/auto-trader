@@ -9,7 +9,7 @@ from currency_converter import CurrencyConverter
 from brooksai.env.models.trade import reset_open_trades, get_trade_state, close_trade, \
     trigger_stop_or_take_profit, close_all_trades, check_margin, Trade, open_trades
 from brooksai.env.models.constants import TradeType, ActionType, Punishment, Fee, \
-    DEFAULT_TRADE_WINDOW, action_type_mapping, MAX_TRADES
+     ApplicationConstants, action_type_mapping
 from brooksai.env.models.action import Action, TradeAction
 from brooksai.env.utils.converter import pip_to_profit
 
@@ -31,21 +31,23 @@ class ForexEnv(gym.Env):
 
         self.observation_space = spaces.Box(low = 0,
                                             high = np.inf,
-                                            shape=(8 + MAX_TRADES,),
+                                            shape=(8 + ApplicationConstants.MAX_TRADES,),
                                             dtype=np.float32)
 
         # action taken, lot size, stop loss, take profit, trade index to close
         self.action_space = spaces.Box(
             low = np.array([0.0, 0.01, -1.0, -1.0, 0.0], dtype=np.float32),
-            high = np.array([1.0, 1.0, 300.0, 300.0, MAX_TRADES - 1], dtype=np.float32),
+            high = np.array([1.0, 1.0, 300.0, 300.0, ApplicationConstants.MAX_TRADES - 1], dtype=np.float32),
             dtype=np.float32
         )
 
         self.current_step: int = 0
         self.current_dataset: pd.Series = self.data.iloc[self.current_step]
         self.current_price: float = self.current_dataset['bid_close']
+        self.current_high: float = self.current_dataset['bid_high']
+        self.current_low: float = self.current_dataset['bid_low']
         self.reward: float = 0.0
-        self.trade_window: int = DEFAULT_TRADE_WINDOW
+        self.trade_window: int = ApplicationConstants.DEFAULT_TRADE_WINDOW
 
         # agent variables
         self.initial_balance: float = initial_balance
@@ -70,7 +72,7 @@ class ForexEnv(gym.Env):
         self.current_price = self.data.iloc[self.current_step]['bid_close']
 
         # Check for stop loss or take profits
-        trigger_stop_or_take_profit(self.current_price)
+        trigger_stop_or_take_profit(self.current_high, self.current_low)
 
         self.apply_actions(action)
 
@@ -118,7 +120,9 @@ class ForexEnv(gym.Env):
         self.current_step = 0
         self.current_dataset = self.data.iloc[self.current_step]
         self.current_price = self.current_dataset['bid_close']
-        self.trade_window = DEFAULT_TRADE_WINDOW
+        self.current_high = self.current_dataset['bid_high']
+        self.current_low = self.current_dataset['bid_low']
+        self.trade_window = ApplicationConstants.DEFAULT_TRADE_WINDOW
         self.reward = 0.0
         reset_open_trades()
 
@@ -155,9 +159,9 @@ class ForexEnv(gym.Env):
 
             # Penalise for setting small stop loss or take profit
             if stop_loss and stop_loss < 5:
-                self.reward -= Punishment.NO_STOP_LOSS.value
+                self.reward -= Punishment.NO_STOP_LOSS
             if take_profit and take_profit < 5:
-                self.reward -= Punishment.NO_TAKE_PROFIT.value
+                self.reward -= Punishment.NO_TAKE_PROFIT
 
             trade_action = TradeAction(
                 stop_loss=stop_loss,
@@ -193,12 +197,12 @@ class ForexEnv(gym.Env):
         if action.action_type == ActionType.DO_NOTHING:
             return
 
-        if len(open_trades) < MAX_TRADES and \
+        if len(open_trades) < ApplicationConstants.MAX_TRADES and \
             action.action_type in [ActionType.LONG, ActionType.SHORT]:
 
             # Verify that the agent has enough balance to open a trade
             if check_margin(action.data.lot_size) > self.current_balance * 0.5:
-                self.reward -= Punishment.INSUFFICIENT_MARGIN.value
+                self.reward -= Punishment.INSUFFICIENT_MARGIN
                 return
 
             Trade(
@@ -212,9 +216,9 @@ class ForexEnv(gym.Env):
 
             # Penalise for not setting stop loss or take profit
             if action.data.stop_loss is None:
-                self.reward -= Punishment.NO_STOP_LOSS.value
+                self.reward -= Punishment.NO_STOP_LOSS
             if action.data.take_profit is None:
-                self.reward -= Punishment.NO_TAKE_PROFIT.value
+                self.reward -= Punishment.NO_TAKE_PROFIT
 
         elif action.action_type == ActionType.CLOSE:
             self.current_balance += close_trade(action.trade, self.current_price)
@@ -227,7 +231,7 @@ class ForexEnv(gym.Env):
         # of the margin for all trades plus the unrealised profit
         if self.current_balance <= (self._calc_sum_margin() - self.unrealized_profit):
             self._margin_call()
-            self.reward -= Punishment.MARGIN_CALLED.value
+            self.reward -= Punishment.MARGIN_CALLED
 
         self._check_trade_window()
 
@@ -276,9 +280,9 @@ class ForexEnv(gym.Env):
         Check if a trade was opened within the trade window
         """
         if self.trade_window == 0:
-            self.reward -= Punishment.NO_TRADE_WITHIN_WINDOW.value
+            self.reward -= Punishment.NO_TRADE_WITHIN_WINDOW
         elif self.trade_window < 0:
-            self.trade_window += Punishment.NO_TRADE_WITHIN_WINDOW.value * self.trade_window
+            self.trade_window += Punishment.NO_TRADE_WITHIN_WINDOW * self.trade_window
 
     def _get_observation(self) -> np.array:
         """
@@ -292,7 +296,7 @@ class ForexEnv(gym.Env):
                 trade_state['profit'],
             ])
 
-        while len(trade_states) < MAX_TRADES:
+        while len(trade_states) < ApplicationConstants.MAX_TRADES:
             trade_states.append(0.0)
 
 
@@ -305,7 +309,7 @@ class ForexEnv(gym.Env):
             self.current_dataset['EMA_200'],
             self.current_dataset["EMA_50"],
             self.current_dataset["EMA_21"]
-        ] + trade_states[:MAX_TRADES], dtype=np.float32)
+        ] + trade_states[:ApplicationConstants.MAX_TRADES], dtype=np.float32)
 
     def _load_data(self, data: str) -> None:
         """

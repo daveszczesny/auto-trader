@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch
 
-from brooksai.env.models.constants import TradeType, CONTRACT_SIZE, LEVERAGE
+from brooksai.env.models.constants import TradeType, ApplicationConstants
 from brooksai.env.models.trade import Trade, reset_open_trades, get_trade_profit, close_trade,\
     trigger_stop_or_take_profit, get_trade_state, get_trade_by_id, open_trades
 
@@ -56,7 +56,7 @@ class TradeTest(unittest.TestCase):
         print(margin)
 
         # Check if the margin is calculated correctly
-        expected_margin = ((1 * CONTRACT_SIZE) / LEVERAGE) * 0.85
+        expected_margin = ((1 * ApplicationConstants.CONTRACT_SIZE) / ApplicationConstants.LEVERAGE) * 0.85
         self.assertAlmostEqual(margin, expected_margin)
 
 
@@ -74,7 +74,7 @@ class TradeTest(unittest.TestCase):
 
         current_price = 1.205
 
-        profit = (current_price - 1.2) * CONTRACT_SIZE * 1
+        profit = (current_price - 1.2) * ApplicationConstants.CONTRACT_SIZE * 1
         self.assertEqual(profit, get_trade_profit(trade, current_price))
 
     @patch('brooksai.env.models.trade.c')
@@ -91,7 +91,7 @@ class TradeTest(unittest.TestCase):
 
         current_price = 1.195
 
-        profit = (1.2 - current_price) * CONTRACT_SIZE * 1
+        profit = (1.2 - current_price) * ApplicationConstants.CONTRACT_SIZE * 1
         self.assertEqual(profit, get_trade_profit(trade, current_price))
 
     @patch('brooksai.env.models.trade.close_trade')
@@ -132,7 +132,7 @@ class TradeTest(unittest.TestCase):
             take_profit=1.3
         )
 
-        total_value = trigger_stop_or_take_profit(1.3)
+        total_value = trigger_stop_or_take_profit(1.3, 1.2)
         self.assertEqual(len(open_trades), 0)
         self.assertGreater(total_value, 0)
 

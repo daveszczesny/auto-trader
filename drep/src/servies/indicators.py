@@ -2,7 +2,7 @@ import os
 import pandas as pd
 from drep.src.servies.logger import logger
 
-CLOSE = 'ask_close'
+CLOSE = 'bid_close'
 
 def csv_to_dataframe(file: str) -> pd.DataFrame:
     """
