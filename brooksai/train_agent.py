@@ -31,5 +31,5 @@ except Exception as _: # pylint: disable=broad-exception-caught
     print("Agent created")
 
 # Train the agent
-model.learn(total_timesteps=200_000)
+model.learn(total_timesteps=1_000_000)
 model.save('ppo_forex')

@@ -1,3 +1,4 @@
+# Mac Commands
 
 setup-venv:
 	rm -rf venv
@@ -20,3 +21,28 @@ lint:
 
 test-unit:
 	PYTHONPATH=${shell pwd} venv/bin/pytest brooksai/tests/unit
+
+
+# Windows Commands
+
+setup-venv-w:
+	rmdir /s /q venv
+	python -m venv venv
+	venv\Scripts\activate.bat
+	venv\Scripts\pip install -r requirements/requirements.txt
+	venv\Scripts\pip install git+https://github.com/DLR-RM/stable-baselines3
+	venv\Scripts\pip install pylint
+	venv\Scripts\pip install pytest
+
+clean-venv-w:
+	rmdir /s /q venv
+
+train-w:
+	set PYTHONPATH=%cd% && venv\Scripts\python brooksai\train_agent.py
+
+lint-w:
+	venv\Scripts\pylint --fail-under=9 brooksai
+	venv\Scripts\pylint --fail-under=9 drep
+
+test-unit-w:
+	set PYTHONPATH=%cd% && venv\Scripts\pytest brooksai\tests\unit

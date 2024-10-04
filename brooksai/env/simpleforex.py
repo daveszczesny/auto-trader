@@ -98,8 +98,23 @@ class SimpleForexEnv(gym.Env):
 
         self.unrealised_pnl = self._get_unrealized_pnl()
 
-        logger.log_test(f"{self.current_step}, {action.action_type.value}, {len(open_trades)}"
-                   f"{round(self.current_price, 5)}, {round(self.current_balance, 2)}, "
+
+        # Reset when
+        # 1. Run is done
+        # 2. Agent can't cover marin
+        # 3. Losses over 1/4 of original balance
+        self.done = self.current_step == self.n_steps - 1 or \
+            self.current_balance * 0.5 <= check_margin(0.01) or \
+                self.initial_balance * 0.75 >= self.current_balance
+
+        if self.done:
+            self.current_balance += close_all_trades(self.current_price)
+            self.previous_unrealized_pnl.clear()
+
+        logger.log_test(f"{self.current_step}, {action.action_type.value}, {len(open_trades)}, "
+                   f"{round(action.data.lot_size, 2) if action.data is not None else 0}, "
+                   f"{round(self.current_price, 5)}, {round(self.current_low, 5)}, "
+                   f"{round(self.current_high, 5)}, {round(self.current_balance, 2)}, "
                    f"{round(self.unrealised_pnl, 2)}")
         
 
@@ -107,14 +122,7 @@ class SimpleForexEnv(gym.Env):
                    f"Balance: {round(self.current_balance, 2)}, "
                    f"Unrealised PnL: {round(self.unrealised_pnl, 2)}, "
                    f"Reward: {round(self.reward, 3)}, Trades Open: {len(open_trades)}")
-
-        self.done = self.current_step == self.n_steps - 1 or \
-            self.current_balance * 0.5 <= check_margin(0.01)
-
-        if self.done:
-            self.current_balance += close_all_trades(self.current_price)
-            self.previous_unrealized_pnl.clear()
-
+    
         self.current_step += 1
 
         return self._get_observation(), self.reward, self.done, False, {}
@@ -264,10 +272,13 @@ class SimpleForexEnv(gym.Env):
             min_pnl = min(self.previous_unrealized_pnl)
             # Define a threshold for significant losses
             significant_loss_threshold = - (self.current_balance * 0.1)
+            significant_gain_threshold = (self.current_balance * 0.15) # 15% of current account balance
 
             # Only give positive rewards for unrealized profit if the agent does nothing
             if unrealized_pnl > 0  and action.action_type is ActionType.DO_NOTHING:
-                if unrealized_pnl > max_pnl:
+                if unrealized_pnl > significant_gain_threshold:
+                    self.reward -= Punishment.MISSED_PROFIT
+                elif unrealized_pnl > max_pnl:
                     self.reward += Reward.UNREALIZED_PROFIT * unrealized_pnl
                 elif unrealized_pnl > mean_pnl:
                     self.reward += Reward.UNREALIZED_PROFIT * (unrealized_pnl / 2)
@@ -314,7 +325,10 @@ class SimpleForexEnv(gym.Env):
                 if action.trade.ttl > 0:
                     self.reward += Reward.TRADE_CLOSED_WITHIN_TTL
 
-                if get_trade_profit(action.trade, self.current_price) > Fee.TRANSACTION_FEE:
+                # Reward agent for keeping within a safe profit
+                # Used to prevent greedy holding
+                trade_profit = get_trade_profit(action.trade, self.current_price)
+                if Fee.TRANSACTION_FEE < trade_profit < significant_gain_threshold:
                     self.reward += Reward.TRADE_CLOSED_IN_PROFIT
                 else:
                     self.reward -= Punishment.TRADE_CLOSED_IN_LOSS
