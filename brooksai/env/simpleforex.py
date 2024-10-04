@@ -18,7 +18,7 @@ from brooksai.env.services.logs.logger import Logger
 
 c = CurrencyConverter()
 
-logger = Logger()
+logger = Logger(mode='test')
 
 # pylint: disable=too-many-instance-attributes
 class SimpleForexEnv(gym.Env):
@@ -98,6 +98,16 @@ class SimpleForexEnv(gym.Env):
 
         self.unrealised_pnl = self._get_unrealized_pnl()
 
+        logger.log_test(f"{self.current_step}, {action.action_type.value}, {len(open_trades)}"
+                   f"{round(self.current_price, 5)}, {round(self.current_balance, 2)}, "
+                   f"{round(self.unrealised_pnl, 2)}")
+        
+
+        logger.log_debug(f"Step: {self.current_step}, Action: {action.action_type}, "
+                   f"Balance: {round(self.current_balance, 2)}, "
+                   f"Unrealised PnL: {round(self.unrealised_pnl, 2)}, "
+                   f"Reward: {round(self.reward, 3)}, Trades Open: {len(open_trades)}")
+
         self.done = self.current_step == self.n_steps - 1 or \
             self.current_balance * 0.5 <= check_margin(0.01)
 
@@ -106,11 +116,6 @@ class SimpleForexEnv(gym.Env):
             self.previous_unrealized_pnl.clear()
 
         self.current_step += 1
-
-        logger.log(f"Step: {self.current_step}, Action: {action.action_type}, "
-                   f"Balance: {round(self.current_balance, 2)}, "
-                   f"Unrealised PnL: {round(self.unrealised_pnl, 2)}, "
-                   f"Reward: {round(self.reward, 3)}, Trades Open: {len(open_trades)}")
 
         return self._get_observation(), self.reward, self.done, False, {}
 
@@ -234,7 +239,7 @@ class SimpleForexEnv(gym.Env):
 
         elif action.action_type is ActionType.CLOSE:
             if action.trade is not None:
-                logger.log(f"Closing trade {action.trade.trade_type}."
+                logger.log_debug(f"Closing trade {action.trade.trade_type}."
                            f"Opened: {action.trade.open_price}, "
                            f"Closed: {self.current_price}. "
                            f"Profit: {get_trade_profit(action.trade, self.current_price)}")
@@ -326,8 +331,8 @@ class SimpleForexEnv(gym.Env):
             self.previous_unrealized_pnl.clear()
             self.current_balance += close_all_trades(self.current_price)
             open_trades.clear()
+            logger.log_debug("Margin Called. All trades closed")
             self.reward -= Punishment.MARGIN_CALLED
-            logger.log("Margin Called. All trades closed")
 
         # Check if agent has not traded within the trade window
         if self.trade_window != ApplicationConstants.DEFAULT_TRADE_WINDOW and len(open_trades) == 0:
@@ -355,7 +360,6 @@ class SimpleForexEnv(gym.Env):
             # If trade is open for more than 10 days + 1 day overdraft, set reward to -1
             if trade.ttl <= ApplicationConstants.TRADE_TTL_OVERDRAFT_LIMIT:
                 self.reward = -2
-                logger.log(f"Trade {trade.uuid} has been open for too long. Agent must close trade")
                 return
 
 
