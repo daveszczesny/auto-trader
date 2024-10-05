@@ -28,19 +28,21 @@ class Punishment:
     TRADE_CLOSED_IN_LOSS = 4.5
     MISSED_PROFIT = 2
     UNREALIZED_LOSS = 1
-    SIGNIFICANT_LOSS=2
+    SIGNIFICANT_LOSS = 2
 
     INVALID_ACTION = 5
 
 class Reward:
-    TRADE_CLOSED = 1.2
+    TRADE_CLOSED = 1.5
     TRADE_CLOSED_IN_PROFIT = 10
     TRADE_OPENED = 0.5
-    TRADE_CLOSED_WITHIN_TTL = 1.5
+    TRADE_CLOSED_WITHIN_TTL = 3
     COMPLETED_RUN = 4
     UNREALIZED_PROFIT = 2
 
     SMALL_REWARD_FOR_DOING_NOTHING = 0.1
+
+    BETTER_AVERAGE_TRADE = 0.1
 
 action_type_mapping = {
     0: ActionType.DO_NOTHING,
@@ -51,9 +53,9 @@ action_type_mapping = {
 
 
 class ApplicationConstants:
-    DEFAULT_TRADE_TTL = 7_200 # 5 days
+    DEFAULT_TRADE_TTL = 2_880 # 2 days
     DEFAULT_TRADE_WINDOW = 4320 # 3 days
-    TRADE_TTL_OVERDRAFT_LIMIT = -1440 # 1 day
+    TRADE_TTL_OVERDRAFT_LIMIT = -720 # 12 hours
     CONTRACT_SIZE = 100_000
     LEVERAGE = 500
     MARGIN_LIMIT = 0.5

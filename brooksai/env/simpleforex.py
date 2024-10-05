@@ -71,14 +71,25 @@ class SimpleForexEnv(gym.Env):
         self.reward: float = 0.0
         self.trade_window: int = ApplicationConstants.DEFAULT_TRADE_WINDOW
         self.done: bool = False
-        self.max_reward = float('-inf')
-        self.min_reward = float('inf')
+        self.max_reward: float = 5.0
+        self.min_reward: float = -0.5
 
         # Agent variables
         self.initial_balance: float = initial_balance
         self.current_balance: float = initial_balance
         self.unrealised_pnl: float = 0.0
         self.previous_balance: float = 0.0
+
+
+        # Action Tracker
+        self.action_tracker = {
+            "trades_opened": 0,
+            "trades_closed": 0,
+            "total_won": 0,
+            "total_lost": 0,
+            "times_won": 0,
+            "times_lost": 0
+        }
 
     def step(self, action: np.ndarray) -> Tuple[np.array, float, bool, bool, dict]:
 
@@ -103,19 +114,32 @@ class SimpleForexEnv(gym.Env):
         # 1. Run is done
         # 2. Agent can't cover marin
         # 3. Losses over 1/4 of original balance
-        self.done = self.current_step == self.n_steps - 1 or \
+        self.done = self.current_step == self.n_steps - 2 or \
             self.current_balance * 0.5 <= check_margin(0.01) or \
-                self.initial_balance * 0.75 >= self.current_balance
+                self.initial_balance * 0.75 >= self.current_balance - abs(self.unrealised_pnl if self.unrealised_pnl < 0 else 0)
 
         if self.done:
             self.current_balance += close_all_trades(self.current_price)
             self.previous_unrealized_pnl.clear()
 
+            # Log tracker
+            
+            average_win = float(self.action_tracker['total_won']) / float(self.action_tracker['trades_closed']) if self.action_tracker['trades_closed'] > 0 else 0
+            average_loss = float(self.action_tracker['total_lost']) / float(self.action_tracker['trades_closed']) if self.action_tracker['trades_closed'] > 0 else 0
+
+            logger.log_test('\nAction Tracker')
+            logger.log_test(f'Trades opened: {self.action_tracker["trades_opened"]}')
+            logger.log_test(f'Trades closed: {self.action_tracker["trades_closed"]}')
+            logger.log_test(f'Average win: {round(average_win, 2)}')
+            logger.log_test(f'Average loss: {round(average_loss, 2)}')
+            win_rate = (self.action_tracker['times_won'] / self.action_tracker['trades_closed']) if self.action_tracker['trades_closed'] > 0 else 0
+            logger.log_test(f'Win rate: {round(win_rate, 2)}')
+
         logger.log_test(f"{self.current_step}, {action.action_type.value}, {len(open_trades)}, "
                    f"{round(action.data.lot_size, 2) if action.data is not None else 0}, "
                    f"{round(self.current_price, 5)}, {round(self.current_low, 5)}, "
                    f"{round(self.current_high, 5)}, {round(self.current_balance, 2)}, "
-                   f"{round(self.unrealised_pnl, 2)}")
+                   f"{round(self.unrealised_pnl, 2)}, {round(self.reward, 2)}")
         
 
         logger.log_debug(f"Step: {self.current_step}, Action: {action.action_type}, "
@@ -150,8 +174,8 @@ class SimpleForexEnv(gym.Env):
         self.current_emas = self.data.iloc[self.current_step][['EMA_200', 'EMA_50', 'EMA_21']]
         self.reward = 0.0
         self.trade_window = ApplicationConstants.DEFAULT_TRADE_WINDOW
-        self.max_reward = float('-inf')
-        self.min_reward = float('inf')
+        self.max_reward: float = 5.0
+        self.min_reward: float = -0.5
 
         reset_open_trades()
         self.previous_unrealized_pnl.clear()
@@ -159,6 +183,15 @@ class SimpleForexEnv(gym.Env):
         # Reset agent variables
         self.current_balance = self.initial_balance
         self.unrealised_pnl = 0.0
+
+        self.action_tracker = {
+            "trades_opened": 0,
+            "trades_closed": 0,
+            "total_won": 0,
+            "total_lost": 0,
+            "times_won": 0,
+            "times_lost": 0
+        }
 
         logger.create_new_log_file()
 
@@ -245,14 +278,23 @@ class SimpleForexEnv(gym.Env):
                 take_profit=None
             )
 
+            self.action_tracker['trades_opened'] += 1
+
         elif action.action_type is ActionType.CLOSE:
             if action.trade is not None:
                 logger.log_debug(f"Closing trade {action.trade.trade_type}."
                            f"Opened: {action.trade.open_price}, "
                            f"Closed: {self.current_price}. "
                            f"Profit: {get_trade_profit(action.trade, self.current_price)}")
+                self.action_tracker['trades_closed'] += 1
+                value = get_trade_profit(action.trade, self.current_price) - Fee.TRANSACTION_FEE
+                if  value  > 0:
+                    self.action_tracker['total_won'] += value
+                    self.action_tracker['times_won'] += 1
+                else:
+                     self.action_tracker['total_lost'] += value
+                     self.action_tracker['times_lost'] += 1
                 self.current_balance += close_trade(action.trade, self.current_price)
-
 
     def calculate_reward(self, action: Action) -> float:
         """
@@ -262,50 +304,11 @@ class SimpleForexEnv(gym.Env):
         """
 
         self.reward = 0.0
-        unrealized_pnl = self._get_unrealized_pnl()
+        # unrealized_pnl = self._get_unrealized_pnl()
         # 10 percent of the current balance
-        significant_loss_threshold = self.current_balance * 0.1
-
-        if len(self.previous_unrealized_pnl) > 0:
-            max_pnl = max(self.previous_unrealized_pnl)
-            mean_pnl = np.mean(self.previous_unrealized_pnl)
-            min_pnl = min(self.previous_unrealized_pnl)
-            # Define a threshold for significant losses
-            significant_loss_threshold = - (self.current_balance * 0.1)
-            significant_gain_threshold = (self.current_balance * 0.15) # 15% of current account balance
-
-            # Only give positive rewards for unrealized profit if the agent does nothing
-            if unrealized_pnl > 0  and action.action_type is ActionType.DO_NOTHING:
-                if unrealized_pnl > significant_gain_threshold:
-                    self.reward -= Punishment.MISSED_PROFIT
-                elif unrealized_pnl > max_pnl:
-                    self.reward += Reward.UNREALIZED_PROFIT * unrealized_pnl
-                elif unrealized_pnl > mean_pnl:
-                    self.reward += Reward.UNREALIZED_PROFIT * (unrealized_pnl / 2)
-                elif unrealized_pnl < mean_pnl:
-                    self.reward -= Punishment.MISSED_PROFIT
-                elif unrealized_pnl < min_pnl:
-                    self.reward -= Punishment.UNREALIZED_LOSS * unrealized_pnl
-            else:
-                if unrealized_pnl < significant_loss_threshold:
-                    self.reward -= Punishment.SIGNIFICANT_LOSS * abs(unrealized_pnl)
-                elif unrealized_pnl < min_pnl:
-                    self.reward -= Punishment.UNREALIZED_LOSS * abs(unrealized_pnl)
-                elif unrealized_pnl < mean_pnl:
-                    self.reward -= Punishment.UNREALIZED_LOSS * (abs(unrealized_pnl) / 2)
-                else:
-                    self.reward -= Punishment.UNREALIZED_LOSS * abs(unrealized_pnl)
-
-            self.previous_unrealized_pnl.append(unrealized_pnl)
-        elif action.action_type is ActionType.DO_NOTHING:
-            self.reward += Reward.SMALL_REWARD_FOR_DOING_NOTHING
-            if unrealized_pnl > 0:
-                self.reward += Reward.UNREALIZED_PROFIT * unrealized_pnl
-            else:
-                self.reward -= Punishment.UNREALIZED_LOSS * unrealized_pnl
-
-        self.previous_unrealized_pnl.append(unrealized_pnl)
-        self.previous_unrealized_pnl = self.previous_unrealized_pnl[-30:]
+        # significant_loss_threshold = self.current_balance * 0.1
+        significant_loss_threshold = self.current_balance * 0.05
+        significant_gain_threshold = 80
 
         # Check if agent tried to make a trade, but couldn't
         if action.action_type in [ActionType.LONG, ActionType.SHORT]:
@@ -320,9 +323,7 @@ class SimpleForexEnv(gym.Env):
             else:
                 self.reward += Reward.TRADE_CLOSED
 
-                self.previous_unrealized_pnl.clear()
-
-                if action.trade.ttl > 0:
+                if 0 < action.trade.ttl < ApplicationConstants.DEFAULT_TRADE_TTL - 5:
                     self.reward += Reward.TRADE_CLOSED_WITHIN_TTL
 
                 # Reward agent for keeping within a safe profit
@@ -333,6 +334,10 @@ class SimpleForexEnv(gym.Env):
                 else:
                     self.reward -= Punishment.TRADE_CLOSED_IN_LOSS
 
+
+        if self._get_unrealized_pnl() < -significant_loss_threshold:
+            self.reward -= 0.5 + (abs(self._get_unrealized_pnl()) % significant_loss_threshold)
+
         if not self.done and self.current_step == self.n_steps - 1:
             self.reward += Reward.COMPLETED_RUN
 
@@ -342,7 +347,6 @@ class SimpleForexEnv(gym.Env):
 
         # Check margin call
         if self.current_balance * 0.5 <= (self._calc_sum_margin() - self.unrealised_pnl):
-            self.previous_unrealized_pnl.clear()
             self.current_balance += close_all_trades(self.current_price)
             open_trades.clear()
             logger.log_debug("Margin Called. All trades closed")
@@ -356,26 +360,28 @@ class SimpleForexEnv(gym.Env):
         if self.trade_window == 0 and len(open_trades) == 0:
             self.reward -= Punishment.NO_TRADE_WITHIN_WINDOW
         elif self.trade_window < 0 and len(open_trades) == 0:
-            self.reward += Punishment.NO_TRADE_WITHIN_WINDOW * self.trade_window
+            self.reward -= abs(Punishment.NO_TRADE_WITHIN_WINDOW * self.trade_window)
 
         # Check if Agent has a long lasting trade
         # if trade is open for more than permitted days, decrease the reward
         for trade in open_trades:
             trade.ttl -= 1
-            # If trade is open for more than 10 days, decrease the reward (within 1 day)
-            if trade.ttl <= 0:
+            # If trade is open for more than n days, decrease the reward (within m day)
+            if trade.ttl <= 0 and action.action_type != ActionType.CLOSE:
                 self.reward -= (Fee.EXTRA_DAY_FEE * abs(trade.ttl))
+
+        if self.reward == 0:
+            return
 
         # Normalise the reward
         self.max_reward = max(self.max_reward, self.reward)
         self.min_reward = min(self.min_reward, self.reward)
 
         for trade in open_trades:
-            # If trade is open for more than 10 days + 1 day overdraft, set reward to -1
+            # If trade is open for more than 10 days + 1 day overdraft, set reward to negative
             if trade.ttl <= ApplicationConstants.TRADE_TTL_OVERDRAFT_LIMIT:
-                self.reward = -2
+                self.reward = - abs(2 * trade.ttl)
                 return
-
 
         normalized_reward: float = 0
         if self.max_reward != self.min_reward:
