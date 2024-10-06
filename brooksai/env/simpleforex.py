@@ -26,6 +26,18 @@ c = CurrencyConverter()
 
 logger = Logger(mode='test')
 
+# Agent improvment metrics
+# This is not reset per epsiode, but for every run of training
+
+agent_improvement_metric = {
+    "win_rate": np.array([]),
+    "average_win":  np.array([]),
+    "average_loss":  np.array([]),
+    "win_lose_ratio":  np.array([]),
+    "steps": np.array([])
+}
+
+
 # pylint: disable=too-many-instance-attributes
 class SimpleForexEnv(gym.Env):
     """
@@ -136,16 +148,24 @@ class SimpleForexEnv(gym.Env):
         # 3. Losses over 1/4 of original balance
         self.done = self.current_step == self.n_steps - 2 or \
             self.current_balance * 0.5 <= check_margin(0.01) or \
-                self.initial_balance * 0.75 >= self.current_balance - abs(self.unrealised_pnl if self.unrealised_pnl < 0 else 0)
+                self.initial_balance * 0.75 >= self.current_balance - abs(self.unrealised_pnl if self.unrealised_pnl < 0 else 0) or \
+                self.trade_window <= 0
 
         if self.done:
             self.current_balance += close_all_trades(self.current_price)
             self.previous_unrealized_pnl.clear()
 
+            if self.trade_window <= 0:
+                self.reward -= 1440
+
             # Log tracker
             
-            average_win = float(self.action_tracker['total_won']) / float(self.action_tracker['trades_closed']) if self.action_tracker['trades_closed'] > 0 else 0
-            average_loss = float(self.action_tracker['total_lost']) / float(self.action_tracker['trades_closed']) if self.action_tracker['trades_closed'] > 0 else 0
+            average_win = float(self.action_tracker['total_won']) / float(self.action_tracker['trades_closed']) \
+                if self.action_tracker['trades_closed'] > 0 else 0
+            average_loss = float(self.action_tracker['total_lost']) / float(self.action_tracker['trades_closed']) \
+                if self.action_tracker['trades_closed'] > 0 else 0
+
+            self.reward += _calculate_agent_improvement(average_win, average_loss, self.action_tracker['times_won'], self.action_tracker['trades_closed'])
 
             logger.log_test('\nAction Tracker')
             logger.log_test(f'Trades opened: {self.action_tracker["trades_opened"]}')
@@ -183,6 +203,8 @@ class SimpleForexEnv(gym.Env):
         :param options: dict
         :return: Tuple[np.array, dict]
         """
+
+        agent_improvement_metric['steps'] = np.append(agent_improvement_metric['steps'], self.current_step)
 
         super().reset(seed=seed)
 
@@ -228,7 +250,7 @@ class SimpleForexEnv(gym.Env):
                                               ActionType.DO_NOTHING)
 
         if action_type in [ActionType.LONG, ActionType.SHORT]:
-            if raw_action[1] is None:
+            if raw_action[1] is None or len(open_trades) >= ApplicationConstants.SIMPLE_MAX_TRADES:
                 action = Action(action_type=ActionType.DO_NOTHING)
                 self.trade_window -= 1
                 return action
@@ -255,7 +277,6 @@ class SimpleForexEnv(gym.Env):
             return action
 
         elif action_type is ActionType.CLOSE:
-            self.trade_window -= 1
             trade_index = int(raw_action[4])
             trade: Optional[Trade] = None
             if 0 <= trade_index < len(open_trades):
@@ -263,6 +284,7 @@ class SimpleForexEnv(gym.Env):
 
             if trade is None:
                 action = Action(action_type=ActionType.DO_NOTHING)
+                self.trade_window -= 1
                 return action
 
             action = Action(
@@ -270,7 +292,6 @@ class SimpleForexEnv(gym.Env):
                 data=None,
                 trade=trade
             )
-            self.trade_window = ApplicationConstants.DEFAULT_TRADE_WINDOW
             return action
         else:
             self.trade_window -= 1
@@ -299,6 +320,7 @@ class SimpleForexEnv(gym.Env):
             )
 
             self.action_tracker['trades_opened'] += 1
+            return
 
         elif action.action_type is ActionType.CLOSE:
             if action.trade is not None:
@@ -316,6 +338,7 @@ class SimpleForexEnv(gym.Env):
                      self.action_tracker['times_lost'] += 1
                 self.current_balance += close_trade(action.trade, self.current_price)
 
+
     def calculate_reward(self, action: Action) -> float:
         """
         Reward function for agent actions
@@ -323,79 +346,93 @@ class SimpleForexEnv(gym.Env):
         :return: float
         """
 
-        self.reward = 0.0
-        # unrealized_pnl = self._get_unrealized_pnl()
-        # 10 percent of the current balance
-        # significant_loss_threshold = self.current_balance * 0.1
+        """
+        Generally in trading, doing nothing is usually the right thing to do.
+        So, we will give a small reward for doing nothing so that the agent
+            learns to not over trade, and let trades run.
+
+        We also don't want the agent to indefinitely hold trades. We want our agent
+            to be an intraday trader. Taking small but consistent profits.
+        So, we will give a small punishment for holding trades for too long.
+
+        We will also punish the agent for invalid actions. The agent will only be permitted
+            to have one trade open at a time. If the agent tries to open another trade
+            while one is already open, the agent will be punished.
+            or close a trade that does not exist, the agent will be punished.
+        
+        We will also punish the agent for closing trades too early. We want the agent to
+            let trades run, and not close trades too early. This, however, depends on the trade,
+            scalping is a valid trading strategy. But, we want the agent to learn to let trades run.
+        So, we will punish the agent for closing trades too early, if the agent is not
+            in profit.
+
+        We will reward the agent for closing trades in profit
+        To prevent the agent from holding trades too long we will punish the agent for holding trades
+            past the trade ttl. The trade ttl is the number of minutes the agent can hold a trade.
+        
+        We will also punish the agent for holding trades that are not in profit, for too long. Trades
+            can turn around, but we want the agent to learn to cut losses early. Again we want an
+            intraday trading bot. Not an investor.
+
+        We will also reward the agent for improving over time. We want the agent to learn from its
+            mistakes and improve over time.
+
+        """
+
         significant_loss_threshold = self.current_balance * 0.05
         significant_gain_threshold = 80
 
-        # Check if agent tried to make a trade, but couldn't
-        if action.action_type in [ActionType.LONG, ActionType.SHORT]:
-            if len(open_trades) >= ApplicationConstants.SIMPLE_MAX_TRADES:
-                self.reward -= Punishment.INVALID_ACTION
-            else:
-                self.reward += Reward.TRADE_OPENED
+        # Check for invalid actions
+        if len(open_trades) >= ApplicationConstants.SIMPLE_MAX_TRADES and \
+                action.action_type in [ActionType.LONG, ActionType.SHORT]:
+            self.reward -= Punishment.INVALID_ACTION
 
-        elif action.action_type is ActionType.CLOSE:
-            if action.trade is None:
-                self.reward -= Punishment.INVALID_ACTION
-            else:
-                self.reward += Reward.TRADE_CLOSED
+        elif len(open_trades) <= 0 and action.action_type is ActionType.CLOSE:
+            self.reward -= Punishment.INVALID_ACTION
 
-                if 0 < action.trade.ttl < ApplicationConstants.DEFAULT_TRADE_TTL - 5:
-                    self.reward += Reward.TRADE_CLOSED_WITHIN_TTL
+        elif len(open_trades) > 0 and action.action_type is ActionType.CLOSE:
+            # Reward for closing trades within the trade ttl
 
-                # Reward agent for keeping within a safe profit
-                # Used to prevent greedy holding
-                trade_profit = get_trade_profit(action.trade, self.current_price)
-                if Fee.TRANSACTION_FEE < trade_profit < significant_gain_threshold:
+            # Reward agent for closing a profitable scalp
+            if open_trades[0].ttl >= ApplicationConstants.DEFAULT_TRADE_TTL - 5 and \
+                get_trade_profit(open_trades[0], self.current_price) > Fee.TRANSACTION_FEE:
+                self.reward += Reward.TRADE_CLOSED_IN_PROFIT
+
+            # If scalp is not profitable, punish agent for closing too early
+            elif open_trades[0].ttl >= ApplicationConstants.DEFAULT_TRADE_TTL - 5:
+                self.reward -= Punishment.CLOSING_TOO_QUICK
+            
+            # Reward agent for closing trades within the trade ttl
+            if 0 < open_trades[0].ttl <= ApplicationConstants.DEFAULT_TRADE_TTL - 5:
+                self.reward += Reward.TRADE_CLOSED_WITHIN_TTL
+
+                # Only rewarded if closed within ttl
+                # Reward for closing trades in profit
+                if get_trade_profit(open_trades[0], self.current_price) > Fee.TRANSACTION_FEE:
                     self.reward += Reward.TRADE_CLOSED_IN_PROFIT
-                else:
-                    self.reward -= Punishment.TRADE_CLOSED_IN_LOSS
 
+        # Punish the agent for holding onto a lossing trade for too long (2 hours)
+        if len(open_trades) > 0 and get_trade_profit(open_trades[0], self.current_price) < -(self.current_balance * 0.02) and \
+            open_trades[0].ttl <= ApplicationConstants.DEFAULT_TRADE_TTL - 60:
+            self.reward -= Punishment.HOLDING_LOSSING_TRADE
+        
+        # Punish the agent for holding a trade with a big loss
+        if len(open_trades) > 0 and get_trade_profit(open_trades[0], self.current_price) < - significant_loss_threshold:
+            self.reward -= Punishment.HOLDING_LOSSING_TRADE
 
-        if self._get_unrealized_pnl() < -significant_loss_threshold:
-            self.reward -= 0.5 + (abs(self._get_unrealized_pnl()) % significant_loss_threshold)
+        # Punish the agent for holding a trade with a big profit
+        if len(open_trades) > 0 and get_trade_profit(open_trades[0], self.current_price) > significant_gain_threshold:
+            self.reward -= Punishment.RISKY_HOLDING
 
-        if not self.done and self.current_step == self.n_steps - 1:
-            self.reward += Reward.COMPLETED_RUN
+        # Reward for doing nothing
+        if action.action_type is ActionType.DO_NOTHING:
+            if len(open_trades) > 0 and get_trade_profit(open_trades[0], self.current_price) < -significant_loss_threshold:
+                pass
+            else:
+                self.reward += Reward.SMALL_REWARD_FOR_DOING_NOTHING
 
-        # Check if agent has run out of money to trade
-        if self.current_balance * 0.5 < check_margin(0.01):
-            self.reward -= Punishment.INSUFFICIENT_FUNDS
-
-        # Check margin call
-        if self.current_balance * 0.5 <= (self._calc_sum_margin() - self.unrealised_pnl):
-            self.current_balance += close_all_trades(self.current_price)
-            open_trades.clear()
-            logger.log_debug("Margin Called. All trades closed")
-            self.reward -= Punishment.MARGIN_CALLED
-
-        # Check if agent has not traded within the trade window
-        if self.trade_window != ApplicationConstants.DEFAULT_TRADE_WINDOW and len(open_trades) == 0:
-            self.reward -= 0.05 * abs(
-                ApplicationConstants.DEFAULT_TRADE_WINDOW - abs(self.trade_window)
-                )
-        if self.trade_window == 0 and len(open_trades) == 0:
-            self.reward -= Punishment.NO_TRADE_WITHIN_WINDOW
-        elif self.trade_window < 0 and len(open_trades) == 0:
-            self.reward -= abs(Punishment.NO_TRADE_WITHIN_WINDOW * self.trade_window)
-
-        # Check if Agent has a long lasting trade
-        # if trade is open for more than permitted days, decrease the reward
-        for trade in open_trades:
-            trade.ttl -= 1
-            # If trade is open for more than n days, decrease the reward (within m day)
-            if trade.ttl <= 0 and action.action_type != ActionType.CLOSE:
-                self.reward -= (Fee.EXTRA_DAY_FEE * abs(trade.ttl))
-
-        if self.reward == 0:
-            return
-
-        # Normalise the reward
-        self.max_reward = max(self.max_reward, self.reward)
-        self.min_reward = min(self.min_reward, self.reward)
+        if self.trade_window <= 0:
+            self.reward -= Punishment.NO_TRADE_OPEN
 
         for trade in open_trades:
             # If trade is open for more than 10 days + 1 day overdraft, set reward to negative
@@ -438,3 +475,88 @@ class SimpleForexEnv(gym.Env):
                 len(open_trades)
                 ], dtype=torch.float32)
         return observation.cuda() if torch.cuda.is_available() else observation
+
+
+
+def _calculate_agent_improvement(average_win, average_loss, times_won, trades_closed) -> float:
+
+    reward: float = 0.0
+
+    max_array_size: int = 12_000
+
+    if len(agent_improvement_metric['win_rate']) > max_array_size:
+        agent_improvement_metric['win_rate'] = agent_improvement_metric['win_rate'][max_array_size/2:]
+
+    if len(agent_improvement_metric['average_win']) > max_array_size:
+        agent_improvement_metric['average_win'] = agent_improvement_metric['average_win'][max_array_size/2:]
+
+    if len(agent_improvement_metric['average_loss']) > max_array_size:
+        agent_improvement_metric['average_loss'] = agent_improvement_metric['average_loss'][max_array_size/2:]
+
+    if len(agent_improvement_metric['win_lose_ratio']) > max_array_size:
+        agent_improvement_metric['win_lose_ratio'] = agent_improvement_metric['win_lose_ratio'][max_array_size/2:]
+
+    # Calculate win rate
+    agent_improvement_metric['win_rate'] = np.append(agent_improvement_metric['win_rate'],
+        round((times_won / trades_closed) \
+                if trades_closed > 0 else 0, 2))
+
+    # Calculate average win and loss
+    agent_improvement_metric['average_win'] = np.append(agent_improvement_metric['average_win'], round(average_win, 2))
+    agent_improvement_metric['average_loss'] = np.append(agent_improvement_metric['average_loss'], round(average_loss, 2))
+
+    agent_improvement_metric['win_lose_ratio'] = np.append(agent_improvement_metric['win_lose_ratio'],
+        (average_win / abs(average_loss)) if abs(average_loss) > 0 else 1
+    )
+
+    # Check if the ratio of average won and average loss is improving
+    if len(agent_improvement_metric['win_lose_ratio']) > 1:
+        if agent_improvement_metric['win_lose_ratio'][-1] > np.mean(agent_improvement_metric['win_lose_ratio'][:-1]):
+             reward += Reward.AGENT_IMPROVED
+        else:
+            reward -= Punishment.AGENT_NOT_IMPROVING
+
+    # If win rate is 0, the agent did not have a winning trade or didn't trade at all
+    if agent_improvement_metric['win_rate'][-1] == 0:
+        reward -= Punishment.NO_TRADE_OPEN
+
+    # If the win rate was better than average
+    if len(agent_improvement_metric['win_rate']) > 1:
+        if agent_improvement_metric['win_rate'][-1] > np.mean(agent_improvement_metric['win_rate'][:-1]):
+            reward += Reward.AGENT_IMPROVED
+        else:
+            reward -= Punishment.AGENT_NOT_IMPROVING
+
+    # If average win was better than average
+    if len(agent_improvement_metric['average_win']) > 1:
+        if agent_improvement_metric['average_win'][-1] > np.mean(agent_improvement_metric['average_win'][:-1]):
+            reward += Reward.BETTER_AVERAGE_TRADE
+        else:
+            reward -= Punishment.AGENT_NOT_IMPROVING
+
+    # If average loss was smaller than best loss
+    if len(agent_improvement_metric['average_loss']) > 1:
+        if agent_improvement_metric['average_loss'][-1] < np.max(agent_improvement_metric['average_loss'][:-1]):
+            reward += Reward.BETTER_AVERAGE_TRADE
+        else:
+            reward -= Punishment.AGENT_NOT_IMPROVING
+
+    # Reward agent for longer run
+    if len(agent_improvement_metric['steps']) > 1 and \
+        agent_improvement_metric['steps'][-1] > np.max(agent_improvement_metric['steps'][:-1]):
+        reward += Reward.AGENT_IMPROVED * 20
+    elif len(agent_improvement_metric['steps']) == 1:
+        pass
+    else:
+        reward -= Punishment.AGENT_NOT_IMPROVING * 5
+
+    # If agent traded more than 1.5 trades average a day
+    # Should prevent under and over trading
+    average_trades_per_day = agent_improvement_metric['steps'][-1] / 1440
+    if 1 < trades_closed / (average_trades_per_day if average_trades_per_day != 0 else 1) < 8:
+        reward += Reward.AGENT_IMPROVED
+    else:
+        reward -= 1
+
+
+    return reward
