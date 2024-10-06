@@ -388,69 +388,73 @@ class SimpleForexEnv(gym.Env):
 
         """
 
-        significant_loss_threshold = self.current_balance * 0.05
-        significant_gain_threshold = 80
+        significant_loss_threshold = self.initial_balance * 0.05
+        significant_gain_theshold = 80
 
-        # Check for invalid actions
-        if len(open_trades) >= ApplicationConstants.SIMPLE_MAX_TRADES and \
-                action.action_type in [ActionType.LONG, ActionType.SHORT]:
-            self.reward -= Punishment.INVALID_ACTION
+        # initialize reward tensor
+        reward_tensor = torch.tensor(0.0, dtype=torch.float32, device=self.device)
 
-        elif len(open_trades) <= 0 and action.action_type is ActionType.CLOSE:
-            self.reward -= Punishment.INVALID_ACTION
+        if open_trades:
+            trade_profits = torch.tensor([get_trade_profit(trade, self.current_price) for trade in open_trades], dtype=torch.float32, device=self.device)
+            ttls = torch.tensor([trade.ttl for trade in open_trades], dtype=torch.float32, device=self.device)
 
-        elif len(open_trades) > 0 and action.action_type is ActionType.CLOSE:
+            # Check for invalid actions
+            invalid_long_short = len(open_trades) >= ApplicationConstants.SIMPLE_MAX_TRADES and action.action_type in [ActionType.LONG, ActionType.SHORT]
+            invalid_close = len(open_trades) <= 0 and action.action_type is ActionType.CLOSE
+
+            if invalid_long_short or invalid_close:
+                reward_tensor -= Punishment.INVALID_ACTION
+
             # Reward for closing trades within the trade ttl
+            if len(open_trades) > 0 and action.action_type is ActionType.CLOSE:
+                # Reward agent for closing a profitable scalp
+                profitable_scalp_mask = (ttls >= ApplicationConstants.DEFAULT_TRADE_TTL - 5) & (trade_profits > Fee.TRANSACTION_FEE)
+                reward_tensor += torch.sum(profitable_scalp_mask * Reward.TRADE_CLOSED_IN_PROFIT)
 
-            # Reward agent for closing a profitable scalp
-            if open_trades[0].ttl >= ApplicationConstants.DEFAULT_TRADE_TTL - 5 and \
-                get_trade_profit(open_trades[0], self.current_price) > Fee.TRANSACTION_FEE:
-                self.reward += Reward.TRADE_CLOSED_IN_PROFIT
+                # Punish agent for closing too early
+                early_scalp_mask = (ttls >= ApplicationConstants.DEFAULT_TRADE_TTL - 5) & (trade_profits <= Fee.TRANSACTION_FEE)
+                reward_tensor -= torch.sum(early_scalp_mask * Punishment.CLOSING_TOO_QUICK)
 
-            # If scalp is not profitable, punish agent for closing too early
-            elif open_trades[0].ttl >= ApplicationConstants.DEFAULT_TRADE_TTL - 5:
-                self.reward -= Punishment.CLOSING_TOO_QUICK
+                # Reward agent for closing trades within the trade ttl
+                within_ttl_mask = (ttls > 0) & (ttls <= ApplicationConstants.DEFAULT_TRADE_TTL - 5)
+                reward_tensor += torch.sum(within_ttl_mask * Reward.TRADE_CLOSED_WITHIN_TTL)
+
+                # Only reward if closed within ttl and in profit
+                profitable_within_ttl_mask = within_ttl_mask & (trade_profits > Fee.TRANSACTION_FEE)
+                reward_tensor += torch.sum(profitable_within_ttl_mask * Reward.TRADE_CLOSED_IN_PROFIT)
             
-            # Reward agent for closing trades within the trade ttl
-            if 0 < open_trades[0].ttl <= ApplicationConstants.DEFAULT_TRADE_TTL - 5:
-                self.reward += Reward.TRADE_CLOSED_WITHIN_TTL
+            # Punish the agent for holding onto a losing trade for too long
+            losing_trade_mask = (trade_profits < -(self.current_balance * 0.02)) & (ttls <= ApplicationConstants.DEFAULT_TRADE_TTL - 60)
+            reward_tensor -= torch.sum(losing_trade_mask * Punishment.HOLDING_LOSSING_TRADE)
 
-                # Only rewarded if closed within ttl
-                # Reward for closing trades in profit
-                if get_trade_profit(open_trades[0], self.current_price) > Fee.TRANSACTION_FEE:
-                    self.reward += Reward.TRADE_CLOSED_IN_PROFIT
+            # Punish the agent for holding a trade with a big loss
+            big_loss_mask = trade_profits < -significant_loss_threshold
+            reward_tensor -= torch.sum(big_loss_mask * Punishment.HOLDING_LOSSING_TRADE)
 
-        # Punish the agent for holding onto a lossing trade for too long (2 hours)
-        if len(open_trades) > 0 and get_trade_profit(open_trades[0], self.current_price) < -(self.current_balance * 0.02) and \
-            open_trades[0].ttl <= ApplicationConstants.DEFAULT_TRADE_TTL - 60:
-            self.reward -= Punishment.HOLDING_LOSSING_TRADE
-        
-        # Punish the agent for holding a trade with a big loss
-        if len(open_trades) > 0 and get_trade_profit(open_trades[0], self.current_price) < - significant_loss_threshold:
-            self.reward -= Punishment.HOLDING_LOSSING_TRADE
+            # Punish the agent for holding a trade with too big a profit
+            big_profit_mask = trade_profits > significant_gain_theshold
+            reward_tensor -= torch.sum(big_profit_mask * Punishment.RISKY_HOLDING)
 
-        # Punish the agent for holding a trade with a big profit
-        if len(open_trades) > 0 and get_trade_profit(open_trades[0], self.current_price) > significant_gain_threshold:
-            self.reward -= Punishment.RISKY_HOLDING
+            # Punish for holding trades too long
+            holding_too_long_mask = ttls < 0
+            reward_tensor -= torch.sum(holding_too_long_mask * Punishment.HOLDING_TRADE_TOO_LONG)
 
-        # Reward for doing nothing
+            # Punish for holding trades WAY too long
+            holding_way_too_long_mask = ttls < -ApplicationConstants.TRADE_TTL_OVERDRAFT_LIMIT
+            reward_tensor -= torch.sum(holding_way_too_long_mask * Punishment.TRADE_HELD_TOO_LONG)
+
+        # Reward for doing nothing if no significant loss
         if action.action_type is ActionType.DO_NOTHING:
-            if len(open_trades) > 0 and get_trade_profit(open_trades[0], self.current_price) < -significant_loss_threshold:
-                pass
-            else:
-                self.reward += Reward.SMALL_REWARD_FOR_DOING_NOTHING
-
+            if not open_trades or trade_profits.max() >= -significant_loss_threshold:
+                reward_tensor += Reward.SMALL_REWARD_FOR_DOING_NOTHING
+        
+        # Punish agent if trade window expired
         if self.trade_window <= 0:
-            self.reward -= Punishment.NO_TRADE_OPEN
+            reward_tensor -= Punishment.NO_TRADE_OPEN
+        
+        self.reward = reward_tensor.item()
+        return self.reward
 
-        for trade in open_trades:
-            # Punish for holding trades too long
-            if trade.ttl < 0:
-                self.reward -= Punishment.HOLDING_TRADE_TOO_LONG
-
-            # Punish for holding trades too long
-            if trade.ttl < - ApplicationConstants.TRADE_TTL_OVERDRAFT_LIMIT:
-                self.reward -= Punishment.TRADE_HELD_TOO_LONG * 5
 
     def _calc_sum_margin(self) -> float:
         return sum(trade.get_margin() for trade in open_trades)
