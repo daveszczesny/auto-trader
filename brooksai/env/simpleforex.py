@@ -24,9 +24,11 @@ logger = Logger(mode='test')
 # This is not reset per epsiode, but for every run of training
 
 agent_improvement_metric = {
-    "win_rate": [],
-    "average_win": [],
-    "average_loss": []
+    "win_rate": np.array([]),
+    "average_win":  np.array([]),
+    "average_loss":  np.array([]),
+    "win_lose_ratio":  np.array([]),
+    "steps": np.array([])
 }
 
 
@@ -66,7 +68,7 @@ class SimpleForexEnv(gym.Env):
         # action taken, lot size, stop loss, take profit, trade index to close
         self.action_space = spaces.Box(
             low = np.array([0.0, 0.01, -1.0, -1.0, 0.0], dtype=np.float32),
-            high = np.array([1.0, 1.0, 1.0, 1.0, ApplicationConstants.SIMPLE_MAX_TRADES - 1],
+            high = np.array([1.0, 1.0, 1.0, 1.0, ApplicationConstants.SIMPLE_MAX_TRADES],
                             dtype=np.float32),
             dtype=np.float32
         )
@@ -182,6 +184,8 @@ class SimpleForexEnv(gym.Env):
         :return: Tuple[np.array, dict]
         """
 
+        agent_improvement_metric['steps'] = np.append(agent_improvement_metric['steps'], self.current_step)
+
         super().reset(seed=seed)
 
         # Reset environment variables
@@ -253,7 +257,6 @@ class SimpleForexEnv(gym.Env):
             return action
 
         elif action_type is ActionType.CLOSE:
-            self.trade_window -= 1
             trade_index = int(raw_action[4])
             trade: Optional[Trade] = None
             if 0 <= trade_index < len(open_trades):
@@ -261,6 +264,7 @@ class SimpleForexEnv(gym.Env):
 
             if trade is None:
                 action = Action(action_type=ActionType.DO_NOTHING)
+                self.trade_window -= 1
                 return action
 
             action = Action(
@@ -461,31 +465,81 @@ def _calculate_agent_improvement(average_win, average_loss, times_won, trades_cl
 
     reward: float = 0.0
 
-    agent_improvement_metric['win_rate'].append(
+    max_array_size: int = 12_000
+
+    if len(agent_improvement_metric['win_rate']) > max_array_size:
+        agent_improvement_metric['win_rate'] = agent_improvement_metric['win_rate'][max_array_size/2:]
+
+    if len(agent_improvement_metric['average_win']) > max_array_size:
+        agent_improvement_metric['average_win'] = agent_improvement_metric['average_win'][max_array_size/2:]
+
+    if len(agent_improvement_metric['average_loss']) > max_array_size:
+        agent_improvement_metric['average_loss'] = agent_improvement_metric['average_loss'][max_array_size/2:]
+
+    if len(agent_improvement_metric['win_lose_ratio']) > max_array_size:
+        agent_improvement_metric['win_lose_ratio'] = agent_improvement_metric['win_lose_ratio'][max_array_size/2:]
+
+    # Calculate win rate
+    agent_improvement_metric['win_rate'] = np.append(agent_improvement_metric['win_rate'],
         round((times_won / trades_closed) \
                 if trades_closed > 0 else 0, 2))
-    agent_improvement_metric['average_win'].append(round(average_win, 2))
-    agent_improvement_metric['average_loss'].append(round(average_loss, 2))
 
+    # Calculate average win and loss
+    agent_improvement_metric['average_win'] = np.append(agent_improvement_metric['average_win'], round(average_win, 2))
+    agent_improvement_metric['average_loss'] = np.append(agent_improvement_metric['average_loss'], round(average_loss, 2))
+
+    agent_improvement_metric['win_lose_ratio'] = np.append(agent_improvement_metric['win_lose_ratio'],
+        (average_win / abs(average_loss)) if abs(average_loss) > 0 else 1
+    )
+
+    # Check if the ratio of average won and average loss is improving
+    if len(agent_improvement_metric['win_lose_ratio']) > 1:
+        if agent_improvement_metric['win_lose_ratio'][-1] > np.mean(agent_improvement_metric['win_lose_ratio'][:-1]):
+             reward += Reward.AGENT_IMPROVED
+        else:
+            reward -= Punishment.AGENT_NOT_IMPROVING
+
+    # If win rate is 0, the agent did not have a winning trade or didn't trade at all
     if agent_improvement_metric['win_rate'][-1] == 0:
         reward -= Punishment.NO_TRADE_OPEN
 
+    # If the win rate was better than average
     if len(agent_improvement_metric['win_rate']) > 1:
-        if agent_improvement_metric['win_rate'][-1] > agent_improvement_metric['win_rate'][-2]:
+        if agent_improvement_metric['win_rate'][-1] > np.mean(agent_improvement_metric['win_rate'][:-1]):
             reward += Reward.AGENT_IMPROVED
         else:
             reward -= Punishment.AGENT_NOT_IMPROVING
 
+    # If average win was better than average
     if len(agent_improvement_metric['average_win']) > 1:
-        if agent_improvement_metric['average_win'][-1] > agent_improvement_metric['average_win'][-2]:
+        if agent_improvement_metric['average_win'][-1] > np.mean(agent_improvement_metric['average_win'][:-1]):
             reward += Reward.BETTER_AVERAGE_TRADE
         else:
             reward -= Punishment.AGENT_NOT_IMPROVING
 
+    # If average loss was smaller than best loss
     if len(agent_improvement_metric['average_loss']) > 1:
-        if agent_improvement_metric['average_loss'][-1] < agent_improvement_metric['average_loss'][-2]:
+        if agent_improvement_metric['average_loss'][-1] < np.max(agent_improvement_metric['average_loss'][:-1]):
             reward += Reward.BETTER_AVERAGE_TRADE
         else:
             reward -= Punishment.AGENT_NOT_IMPROVING
+
+    # Reward agent for longer run
+    if len(agent_improvement_metric['steps']) > 1 and \
+        agent_improvement_metric['steps'][-1] > np.max(agent_improvement_metric['steps'][:-1]):
+        reward += Reward.AGENT_IMPROVED * 20
+    elif len(agent_improvement_metric['steps']) == 1:
+        pass
+    else:
+        reward -= Punishment.AGENT_NOT_IMPROVING * 5
+
+    # If agent traded more than 1.5 trades average a day
+    # Should prevent under and over trading
+    average_trades_per_day = agent_improvement_metric['steps'][-1] / 1440
+    if 1 < trades_closed / (average_trades_per_day if average_trades_per_day != 0 else 1) < 8:
+        reward += Reward.AGENT_IMPROVED
+    else:
+        reward -= 1
+
 
     return reward
