@@ -1,7 +1,13 @@
 from typing import Tuple, Optional, List
 
 import pandas as pd
-import numpy as np
+
+import torch
+if torch.cuda.is_available():
+    pass
+else:
+    import numpy as np
+
 import gymnasium as gym
 from gymnasium import spaces
 
@@ -39,6 +45,7 @@ class SimpleForexEnv(gym.Env):
                  render_mode: Optional[str] = None):
 
         self.data = pd.read_csv(data)
+        self.data = torch.tensor(self.data.values, dtype=torch.float32)
 
         # Environment variables
         self.n_steps = len(self.data)
@@ -50,22 +57,25 @@ class SimpleForexEnv(gym.Env):
         self.observation_space = spaces.Box(low=0,
                                             high=np.inf,
                                             shape=(9, ),
-                                            dtype=np.float32)
+                                            dtype=torch.float32)
 
         # Action space
         # action taken, lot size, stop loss, take profit, trade index to close
         self.action_space = spaces.Box(
-            low = np.array([0.0, 0.01, -1.0, -1.0, 0.0], dtype=np.float32),
+            low = np.array([0.0, 0.01, -1.0, -1.0, 0.0], dtype=torch.float32),
             high = np.array([1.0, 1.0, 1.0, 1.0, ApplicationConstants.SIMPLE_MAX_TRADES - 1],
-                            dtype=np.float32),
-            dtype=np.float32
+                            dtype=torch.float32),
+            dtype=torch.float32
         )
 
         self.current_step: int = 0
-        self.current_price: float = self.data.iloc[self.current_step]['bid_close']
-        self.current_high: float = self.data.iloc[self.current_step]['bid_high']
-        self.current_low: float = self.data.iloc[self.current_step]['bid_low']
-        self.current_emas = self.data.iloc[self.current_step][['EMA_200', 'EMA_50', 'EMA_21']]
+
+        self._update_current_state()
+
+            # self.current_price: float = self.data.iloc[self.current_step]['bid_close']
+            # self.current_high: float = self.data.iloc[self.current_step]['bid_high']
+            # self.current_low: float = self.data.iloc[self.current_step]['bid_low']
+            # self.current_emas = self.data.iloc[self.current_step][['EMA_200', 'EMA_50', 'EMA_21']]
 
         self.previous_unrealized_pnl: List[float] = []
         self.reward: float = 0.0
@@ -91,16 +101,26 @@ class SimpleForexEnv(gym.Env):
             "times_lost": 0
         }
 
-    def step(self, action: np.ndarray) -> Tuple[np.array, float, bool, bool, dict]:
+    def _update_current_state(self):
+        if torch.cuda.is_available():
+            self.data = self.data.cuda()
+
+        self.current_price: float = self.data[self.current_step, 7].item()
+        self.current_high: float = self.data[self.current_step, 6].item()
+        self.current_low: float = self.data[self.current_step, 5].item()
+        self.current_emas: Tuple[float, float, float] = (
+            self.data[self.current_step, 11].item(),
+            self.data[self.current_step, 12].item(),
+            self.data[self.current_step, 13].item()
+        )
+
+    def step(self, action: np.ndarray) -> Tuple[torch.Tensor, float, bool, bool, dict]:
 
         action: Action = self.construct_action(action)
 
-        self.reward = 0.0
+        self.reward: float = 0.0
 
-        self.current_price = self.data.iloc[self.current_step]['bid_close']
-        self.current_high = self.data.iloc[self.current_step]['bid_high']
-        self.current_low = self.data.iloc[self.current_step]['bid_low']
-        self.current_emas = self.data.iloc[self.current_step][['EMA_200', 'EMA_50', 'EMA_21']]
+        self._update_current_state()
 
         trigger_stop_or_take_profit(self.current_high, self.current_low)
         self.calculate_reward(action)
@@ -391,12 +411,6 @@ class SimpleForexEnv(gym.Env):
 
         self.reward = normalized_reward
 
-    def apply_environment_rules(self) -> None:
-        """
-        Apply the environment rules
-        """
-        pass
-
     def _calc_sum_margin(self) -> float:
         return sum(trade.get_margin() for trade in open_trades)
 
@@ -408,21 +422,19 @@ class SimpleForexEnv(gym.Env):
             for trade in open_trades
         )
 
-    def _get_observation(self) -> np.array:
+    def _get_observation(self) -> torch.Tensor:
         """
         Get the observation of the environment
         """
-
         # balance, unrealised pnl, current price, current high, current low,
         # EMA 200, EMA 50, EMA 21, OPEN TRADES
-        observation = np.array([
-            self.current_balance,
-            self.unrealised_pnl,
-            self.current_price,
-            self.current_high,
-            self.current_low,
-            *self.current_emas,
-            len(open_trades)
-        ], np.float32)
-
-        return observation
+        observation = torch.tensor([
+                self.current_balance,
+                self.unrealised_pnl,
+                self.current_price,
+                self.current_high,
+                self.current_low,
+                *self.current_emas,
+                len(open_trades)
+                ], dtype=torch.float32)
+        return observation.cuda() if torch.cuda.is_available() else observation
