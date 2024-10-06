@@ -49,7 +49,7 @@ class Logger:
         self.current_file = f"{self.root_run}{self.run:03d}/log_" + str(len(os.listdir(f"{self.root_run}{self.run:03d}/")))
 
         if self.mode == TEST:
-            self.create_csv("step, action, trades open, trade size, price, low, high, balance, unrealized profit")
+            self.create_csv("step, action, trades open, trade size, price, low, high, balance, unrealized profit, reward")
 
     def create_csv(self, header: str):
         # Run at the start of a new csv file
