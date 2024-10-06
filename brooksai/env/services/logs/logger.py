@@ -11,7 +11,7 @@ class Logger:
     root_dir: str = "logs/"
     root_run: str = root_dir + datetime.now().strftime("%Y-%m-%d_%H-%M") + "/"
 
-    def __init__(self, mode: str = 'debug'):
+    def __init__(self, mode: str = 'test'):
         self.run: int = 1
         self.mode = mode.upper()
 

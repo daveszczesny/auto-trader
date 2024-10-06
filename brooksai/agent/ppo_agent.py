@@ -8,7 +8,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 class PPOAgent:
     def __init__(self, env: gym.Env):
         self.env = env
-        self.model = PPO('MlpPolicy', env, device=device, verbose=1)
+        self.model = PPO('MlpPolicy', env, device=device, verbose=1, batch_size=256)
 
     def learn(self, total_timesteps: int = 4_000_000):
         self.model.learn(total_timesteps=total_timesteps)

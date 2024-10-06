@@ -3,4 +3,4 @@ pandas
 gymnasium==0.28.1
 stable-baselines3
 numpy
-torch
+dask

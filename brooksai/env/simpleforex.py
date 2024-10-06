@@ -1,12 +1,9 @@
 from typing import Tuple, Optional, List
 
-import pandas as pd
+import dask.dataframe as dd
 
 import torch
-if torch.cuda.is_available():
-    pass
-else:
-    import numpy as np
+import numpy as np
 
 import gymnasium as gym
 from gymnasium import spaces
@@ -46,8 +43,6 @@ class SimpleForexEnv(gym.Env):
     The agent does not have to worry about stop loss, take profit, or lot size.
     The agent can only go long or short and close trades.
     The agent can only open one trade at a time.
-
-    The market data is simplified, with noise reduction
     """
 
 
@@ -56,9 +51,11 @@ class SimpleForexEnv(gym.Env):
                  initial_balance: float = 1_000,
                  render_mode: Optional[str] = None):
 
-        self.data = pd.read_csv(data)
+        self.data = dd.read_csv(data)
         self.data = self.data.select_dtypes(include=[float, int])
-        self.data = torch.tensor(self.data.values, dtype=torch.float32)
+        self.data = self.data.to_dask_array(lengths=True)
+        self.data = self.data.compute()
+        self.data = torch.tensor(self.data, dtype=torch.float32)
 
         # Environment variables
         self.n_steps = len(self.data)
@@ -86,11 +83,6 @@ class SimpleForexEnv(gym.Env):
         self.current_step: int = 0
 
         self._update_current_state()
-
-            # self.current_price: float = self.data.iloc[self.current_step]['bid_close']
-            # self.current_high: float = self.data.iloc[self.current_step]['bid_high']
-            # self.current_low: float = self.data.iloc[self.current_step]['bid_low']
-            # self.current_emas = self.data.iloc[self.current_step][['EMA_200', 'EMA_50', 'EMA_21']]
 
         self.previous_unrealized_pnl: List[float] = []
         self.reward: float = 0.0
