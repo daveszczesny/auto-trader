@@ -3,7 +3,7 @@ from stable_baselines3 import PPO
 
 import torch
 
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+device = 'cpu'
 
 class PPOAgent:
     def __init__(self, env: gym.Env):
