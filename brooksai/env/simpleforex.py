@@ -30,11 +30,11 @@ logger = Logger(mode='test')
 # This is not reset per epsiode, but for every run of training
 
 agent_improvement_metric = {
-    "win_rate": np.array([]),
-    "average_win":  np.array([]),
-    "average_loss":  np.array([]),
-    "win_lose_ratio":  np.array([]),
-    "steps": np.array([])
+    "win_rate": torch.tensor([], dtype=torch.float32),
+    "average_win": torch.tensor([], dtype=torch.float32),
+    "average_loss": torch.tensor([], dtype=torch.float32),
+    "win_lose_ratio": torch.tensor([], dtype=torch.float32),
+    "steps": torch.tensor([], dtype=torch.float32)
 }
 
 
@@ -57,6 +57,7 @@ class SimpleForexEnv(gym.Env):
                  render_mode: Optional[str] = None):
 
         self.data = pd.read_csv(data)
+        self.data = self.data.select_dtypes(include=[float, int])
         self.data = torch.tensor(self.data.values, dtype=torch.float32)
 
         # Environment variables
@@ -66,18 +67,20 @@ class SimpleForexEnv(gym.Env):
         # Observation space
         # balance, unrealised pnl, current price, current high, current low,
         # EMA 200, EMA 50, EMA 21, OPEN TRADES
-        self.observation_space = spaces.Box(low=0,
-                                            high=np.inf,
-                                            shape=(9, ),
-                                            dtype=torch.float32)
+        self.observation_space = spaces.Box(
+            low=0.0,
+            high=np.inf,
+            shape=(9, ),
+            dtype=np.float32
+        )
 
         # Action space
-        # action taken, lot size, stop loss, take profit, trade index to close
+        # action taken, lot size, stop loss, take profit
         self.action_space = spaces.Box(
-            low = np.array([0.0, 0.01, -1.0, -1.0, 0.0], dtype=torch.float32),
-            high = np.array([1.0, 1.0, 1.0, 1.0, ApplicationConstants.SIMPLE_MAX_TRADES - 1],
-                            dtype=torch.float32),
-            dtype=torch.float32
+            low = np.array([0.0, 0.01, -1.0, -1.0], dtype=np.float32),
+            high = np.array([1.0, 1.0, 1.0, 1.0],
+                            dtype=np.float32),
+            dtype=np.float32
         )
 
         self.current_step: int = 0
@@ -117,13 +120,13 @@ class SimpleForexEnv(gym.Env):
         if torch.cuda.is_available():
             self.data = self.data.cuda()
 
-        self.current_price: float = self.data[self.current_step, 7].item()
-        self.current_high: float = self.data[self.current_step, 6].item()
-        self.current_low: float = self.data[self.current_step, 5].item()
+        self.current_price: float = self.data[self.current_step, 6].item()
+        self.current_high: float = self.data[self.current_step, 5].item()
+        self.current_low: float = self.data[self.current_step, 4].item()
         self.current_emas: Tuple[float, float, float] = (
+            self.data[self.current_step, 10].item(),
             self.data[self.current_step, 11].item(),
-            self.data[self.current_step, 12].item(),
-            self.data[self.current_step, 13].item()
+            self.data[self.current_step, 12].item()
         )
 
     def step(self, action: np.ndarray) -> Tuple[torch.Tensor, float, bool, bool, dict]:
@@ -196,7 +199,7 @@ class SimpleForexEnv(gym.Env):
 
     def reset(self,
               seed: Optional[int] = None,
-              options: Optional[dict] = None) -> Tuple[np.array, dict]:
+              options: Optional[dict] = None) -> Tuple[np.ndarray, dict]:
         """
         Reset the state of the environment to the inital state
         :param seed: int
@@ -204,16 +207,13 @@ class SimpleForexEnv(gym.Env):
         :return: Tuple[np.array, dict]
         """
 
-        agent_improvement_metric['steps'] = np.append(agent_improvement_metric['steps'], self.current_step)
+        agent_improvement_metric['steps'] = torch.cat((agent_improvement_metric['steps'], torch.tensor([self.current_step], dtype=torch.float32)))
 
         super().reset(seed=seed)
 
         # Reset environment variables
         self.current_step = 0
-        self.current_price = self.data.iloc[self.current_step]['bid_close']
-        self.current_high = self.data.iloc[self.current_step]['bid_high']
-        self.current_low = self.data.iloc[self.current_step]['bid_low']
-        self.current_emas = self.data.iloc[self.current_step][['EMA_200', 'EMA_50', 'EMA_21']]
+        self._update_current_state()
         self.reward = 0.0
         self.trade_window = ApplicationConstants.DEFAULT_TRADE_WINDOW
         self.max_reward: float = 5.0
@@ -239,27 +239,28 @@ class SimpleForexEnv(gym.Env):
 
         return self._get_observation(), {}
 
-    def construct_action(self, raw_action: np.ndarray) -> Action:
+    def construct_action(self, raw_action: torch.Tensor) -> Action:
         """
         Construct the Agent Action from raw action values
         :param raw_action: np.ndarray
         :return: Action
         """
 
-        action_type = action_type_mapping.get(int(raw_action[0] * len(action_type_mapping)), \
+        action_type = action_type_mapping.get(int(raw_action[0].item() * len(action_type_mapping)), \
                                               ActionType.DO_NOTHING)
 
         if action_type in [ActionType.LONG, ActionType.SHORT]:
-            if raw_action[1] is None or len(open_trades) >= ApplicationConstants.SIMPLE_MAX_TRADES:
+
+            if raw_action[1].item() <= 0 or len(open_trades) >= ApplicationConstants.SIMPLE_MAX_TRADES:
                 action = Action(action_type=ActionType.DO_NOTHING)
                 self.trade_window -= 1
                 return action
 
-            lot_size: float = raw_action[1]
-            stop_loss = float(raw_action[2]) * ApplicationConstants.TP_AND_SL_SCALE_FACTOR \
+            lot_size: float = raw_action[1].item()
+            stop_loss = float(raw_action[2].item()) * ApplicationConstants.TP_AND_SL_SCALE_FACTOR \
                 if raw_action[2] > 0 else None
-            take_profit = float(raw_action[3]) * ApplicationConstants.TP_AND_SL_SCALE_FACTOR \
-                if raw_action[3] > 0 else None
+            take_profit = float(raw_action[3].item()) * ApplicationConstants.TP_AND_SL_SCALE_FACTOR \
+                if raw_action[3].item() > 0 else None
 
             trade_action = TradeAction(
                 stop_loss=stop_loss,
@@ -277,22 +278,19 @@ class SimpleForexEnv(gym.Env):
             return action
 
         elif action_type is ActionType.CLOSE:
-            trade_index = int(raw_action[4])
-            trade: Optional[Trade] = None
-            if 0 <= trade_index < len(open_trades):
-                trade = open_trades[trade_index]
+            if len(open_trades) > 0:
+                trade = open_trades[0]
 
-            if trade is None:
+                action = Action(
+                    action_type=action_type,
+                    data=None,
+                    trade=trade
+                )
+                return action
+            else:
                 action = Action(action_type=ActionType.DO_NOTHING)
                 self.trade_window -= 1
                 return action
-
-            action = Action(
-                action_type=action_type,
-                data=None,
-                trade=trade
-            )
-            return action
         else:
             self.trade_window -= 1
             action = Action(action_type=action_type)
@@ -435,18 +433,13 @@ class SimpleForexEnv(gym.Env):
             self.reward -= Punishment.NO_TRADE_OPEN
 
         for trade in open_trades:
-            # If trade is open for more than 10 days + 1 day overdraft, set reward to negative
-            if trade.ttl <= ApplicationConstants.TRADE_TTL_OVERDRAFT_LIMIT:
-                self.reward = - abs(2 * trade.ttl)
-                return
+            # Punish for holding trades too long
+            if trade.ttl < 0:
+                self.reward -= Punishment.HOLDING_TRADE_TOO_LONG
 
-        normalized_reward: float = 0
-        if self.max_reward != self.min_reward:
-            normalized_reward = (self.reward - self.min_reward) / (self.max_reward - self.min_reward) * 2 - 1
-        else:
-            normalized_reward = 0
-
-        self.reward = normalized_reward
+            # Punish for holding trades too long
+            if trade.ttl < - ApplicationConstants.TRADE_TTL_OVERDRAFT_LIMIT:
+                self.reward -= Punishment.TRADE_HELD_TOO_LONG * 5
 
     def _calc_sum_margin(self) -> float:
         return sum(trade.get_margin() for trade in open_trades)
@@ -459,7 +452,7 @@ class SimpleForexEnv(gym.Env):
             for trade in open_trades
         )
 
-    def _get_observation(self) -> torch.Tensor:
+    def _get_observation(self) -> np.ndarray:
         """
         Get the observation of the environment
         """
@@ -474,9 +467,8 @@ class SimpleForexEnv(gym.Env):
                 *self.current_emas,
                 len(open_trades)
                 ], dtype=torch.float32)
-        return observation.cuda() if torch.cuda.is_available() else observation
-
-
+        observation = observation.cuda() if torch.cuda.is_available() else observation
+        return observation.cpu().numpy()
 
 def _calculate_agent_improvement(average_win, average_loss, times_won, trades_closed) -> float:
 
@@ -484,35 +476,32 @@ def _calculate_agent_improvement(average_win, average_loss, times_won, trades_cl
 
     max_array_size: int = 12_000
 
-    if len(agent_improvement_metric['win_rate']) > max_array_size:
-        agent_improvement_metric['win_rate'] = agent_improvement_metric['win_rate'][max_array_size/2:]
+    for key in ['win_rate', 'average_win', 'average_loss', 'win_lose_ratio', 'steps']:
+        if key not in agent_improvement_metric:
+            agent_improvement_metric[key] = torch.tensor([], dtype=torch.float32)
 
-    if len(agent_improvement_metric['average_win']) > max_array_size:
-        agent_improvement_metric['average_win'] = agent_improvement_metric['average_win'][max_array_size/2:]
+    # Truncate arrays if they exceed max array length
+    for key in ['win_rate', 'average_win', 'average_loss', 'win_lose_ratio']:
+        if agent_improvement_metric[key].size(0) > max_array_size:
+            agent_improvement_metric[key] = agent_improvement_metric[key][max_array_size // 2:]
 
-    if len(agent_improvement_metric['average_loss']) > max_array_size:
-        agent_improvement_metric['average_loss'] = agent_improvement_metric['average_loss'][max_array_size/2:]
-
-    if len(agent_improvement_metric['win_lose_ratio']) > max_array_size:
-        agent_improvement_metric['win_lose_ratio'] = agent_improvement_metric['win_lose_ratio'][max_array_size/2:]
 
     # Calculate win rate
-    agent_improvement_metric['win_rate'] = np.append(agent_improvement_metric['win_rate'],
-        round((times_won / trades_closed) \
-                if trades_closed > 0 else 0, 2))
+    win_rate = (times_won / trades_closed) if trades_closed > 0 else 0
+    agent_improvement_metric['win_rate'] = torch.cat((agent_improvement_metric['win_rate'], torch.tensor([win_rate], dtype=torch.float32)))
 
     # Calculate average win and loss
-    agent_improvement_metric['average_win'] = np.append(agent_improvement_metric['average_win'], round(average_win, 2))
-    agent_improvement_metric['average_loss'] = np.append(agent_improvement_metric['average_loss'], round(average_loss, 2))
+    agent_improvement_metric['average_win'] = torch.cat((agent_improvement_metric['average_win'], torch.tensor([average_win], dtype=torch.float32)))
+    agent_improvement_metric['average_loss'] = torch.cat((agent_improvement_metric['average_loss'], torch.tensor([average_loss], dtype=torch.float32)))
 
-    agent_improvement_metric['win_lose_ratio'] = np.append(agent_improvement_metric['win_lose_ratio'],
-        (average_win / abs(average_loss)) if abs(average_loss) > 0 else 1
-    )
+    # Calculate win/lose ratio
+    win_lose_ratio = (average_win / abs(average_loss)) if abs(average_loss) > 0 else 1
+    agent_improvement_metric['win_lose_ratio'] = torch.cat((agent_improvement_metric['win_lose_ratio'], torch.tensor([win_lose_ratio], dtype=torch.float32)))
 
-    # Check if the ratio of average won and average loss is improving
-    if len(agent_improvement_metric['win_lose_ratio']) > 1:
-        if agent_improvement_metric['win_lose_ratio'][-1] > np.mean(agent_improvement_metric['win_lose_ratio'][:-1]):
-             reward += Reward.AGENT_IMPROVED
+     # Check if the ratio of average won and average loss is improving
+    if agent_improvement_metric['win_lose_ratio'].size(0) > 1:
+        if agent_improvement_metric['win_lose_ratio'][-1] > agent_improvement_metric['win_lose_ratio'][:-1].mean():
+            reward += Reward.AGENT_IMPROVED
         else:
             reward -= Punishment.AGENT_NOT_IMPROVING
 
@@ -521,31 +510,31 @@ def _calculate_agent_improvement(average_win, average_loss, times_won, trades_cl
         reward -= Punishment.NO_TRADE_OPEN
 
     # If the win rate was better than average
-    if len(agent_improvement_metric['win_rate']) > 1:
-        if agent_improvement_metric['win_rate'][-1] > np.mean(agent_improvement_metric['win_rate'][:-1]):
+    if agent_improvement_metric['win_rate'].size(0) > 1:
+        if agent_improvement_metric['win_rate'][-1] > agent_improvement_metric['win_rate'][:-1].mean():
             reward += Reward.AGENT_IMPROVED
         else:
             reward -= Punishment.AGENT_NOT_IMPROVING
 
     # If average win was better than average
-    if len(agent_improvement_metric['average_win']) > 1:
-        if agent_improvement_metric['average_win'][-1] > np.mean(agent_improvement_metric['average_win'][:-1]):
+    if agent_improvement_metric['average_win'].size(0) > 1:
+        if agent_improvement_metric['average_win'][-1] > agent_improvement_metric['average_win'][:-1].mean():
             reward += Reward.BETTER_AVERAGE_TRADE
         else:
             reward -= Punishment.AGENT_NOT_IMPROVING
 
     # If average loss was smaller than best loss
-    if len(agent_improvement_metric['average_loss']) > 1:
-        if agent_improvement_metric['average_loss'][-1] < np.max(agent_improvement_metric['average_loss'][:-1]):
+    if agent_improvement_metric['average_loss'].size(0) > 1:
+        if agent_improvement_metric['average_loss'][-1] < agent_improvement_metric['average_loss'][:-1].max():
             reward += Reward.BETTER_AVERAGE_TRADE
         else:
             reward -= Punishment.AGENT_NOT_IMPROVING
 
     # Reward agent for longer run
-    if len(agent_improvement_metric['steps']) > 1 and \
-        agent_improvement_metric['steps'][-1] > np.max(agent_improvement_metric['steps'][:-1]):
+    if agent_improvement_metric['steps'].size(0) > 1 and \
+        agent_improvement_metric['steps'][-1] > agent_improvement_metric['steps'][:-1].max():
         reward += Reward.AGENT_IMPROVED * 20
-    elif len(agent_improvement_metric['steps']) == 1:
+    elif agent_improvement_metric['steps'].size(0) == 1:
         pass
     else:
         reward -= Punishment.AGENT_NOT_IMPROVING * 5
@@ -557,6 +546,5 @@ def _calculate_agent_improvement(average_win, average_loss, times_won, trades_cl
         reward += Reward.AGENT_IMPROVED
     else:
         reward -= 1
-
 
     return reward
