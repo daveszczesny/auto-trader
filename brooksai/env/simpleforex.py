@@ -27,6 +27,8 @@ logger = Logger(mode='test')
 # This is not reset per epsiode, but for every run of training
 
 DEVICE = 'cpu'
+
+#TODO Move to GPU
 agent_improvement_metric = {
     "win_rate": torch.tensor([], dtype=torch.float32, device=DEVICE),
     "average_win": torch.tensor([], dtype=torch.float32, device=DEVICE),
@@ -54,6 +56,7 @@ class SimpleForexEnv(gym.Env):
 
         self.device = DEVICE
 
+        #TODO Move to GPU
         self.data = dd.read_csv(data)
         self.data = self.data.select_dtypes(include=[float, int])
         self.data = self.data.to_dask_array(lengths=True)
@@ -112,7 +115,8 @@ class SimpleForexEnv(gym.Env):
         }
 
     def _update_current_state(self):
-        if torch.cuda.is_available():
+        #TODO Move to GPU
+        if torch.cuda.is_available() and not self.data.is_cuda:
             self.data = self.data.cuda()
 
         self.current_price: float = float(self.data[self.current_step, 6].item())
@@ -166,29 +170,30 @@ class SimpleForexEnv(gym.Env):
 
             self.reward += _calculate_agent_improvement(average_win, average_loss, self.action_tracker['times_won'], self.action_tracker['trades_closed'])
 
+            #Logging would use variables from the GPU, how can we log this?
             logger.log_test('\nAction Tracker')
             logger.log_test(f'Trades opened: {self.action_tracker["trades_opened"]}')
             logger.log_test(f'Trades closed: {self.action_tracker["trades_closed"]}')
-            logger.log_test(f'Average win: {torch.tensor(average_win, dtype=torch.float32, device=self.device).round(decimals=2).item()}')
-            logger.log_test(f'Average loss: {torch.tensor(average_loss, dtype=torch.float32, device=self.device).round(decimals=2).item()}')
+            logger.log_test(f'Average win: {average_win}')
+            logger.log_test(f'Average loss: {average_loss}')
             win_rate = (self.action_tracker['times_won'] / self.action_tracker['trades_closed']) \
                 if self.action_tracker['trades_closed'] > 0 else 0
-            logger.log_test(f'Win rate: {torch.tensor(win_rate, dtype=torch.float32, device=self.device).round(decimals=2).item()}')
+            logger.log_test(f'Win rate: {win_rate}')
 
         logger.log_test(f"{self.current_step}, {action.action_type.value}, {len(open_trades)}, "
-                        f"{torch.tensor(action.data.lot_size, dtype=torch.float32, device=self.device).round(decimals=2).item() if action.data is not None else 0}, "
-                        f"{torch.tensor(self.current_price, dtype=torch.float32, device=self.device).round(decimals=5).item()}, "
-                        f"{torch.tensor(self.current_low, dtype=torch.float32, device=self.device).round(decimals=5).item()}, "
-                        f"{torch.tensor(self.current_high, dtype=torch.float32, device=self.device).round(decimals=5).item()}, "
-                        f"{torch.tensor(self.current_balance, dtype=torch.float32, device=self.device).round(decimals=2).item()}, "
-                        f"{torch.tensor(self.unrealised_pnl, dtype=torch.float32, device=self.device).round(decimals=2).item()}, "
-                        f"{torch.tensor(self.reward, dtype=torch.float32, device=self.device).round(decimals=2).item()}"
+                        f"{action.data.lot_size if action.data is not None else 0}, "
+                        f"{self.current_price}, "
+                        f"{self.current_low}, "
+                        f"{self.current_high}, "
+                        f"{self.current_balance}, "
+                        f"{self.unrealised_pnl}, "
+                        f"{self.reward}"
         )
 
         logger.log_debug(f"Step: {self.current_step}, Action: {action.action_type}, "
-                        f"Balance: {torch.tensor(self.current_balance, dtype=torch.float32, device=self.device).round(decimals=2).item()}, "
-                        f"Unrealised PnL: {torch.tensor(self.unrealised_pnl, dtype=torch.float32, device=self.device).round(decimals=2).item()}, "
-                        f"Reward: {torch.tensor(self.reward, dtype=torch.float32, device=self.device).round(decimals=3).item()}, "
+                        f"Balance: {self.current_balance}, "
+                        f"Unrealised PnL: {self.unrealised_pnl}, "
+                        f"Reward: {self.reward}, "
                         f"Trades Open: {len(open_trades)}")
 
         self.current_step += 1
@@ -338,6 +343,11 @@ class SimpleForexEnv(gym.Env):
                 self.current_balance += close_trade(action.trade, self.current_price)
 
 
+    """
+    Can we vectorize the reward function?
+    If we can we should put it on the GPU.
+    """
+
     def calculate_reward(self, action: Action) -> float:
         """
         Reward function for agent actions
@@ -470,7 +480,9 @@ class SimpleForexEnv(gym.Env):
                 ], dtype=torch.float32, device=self.device)
         return observation.cpu().numpy()
 
+
 def _calculate_agent_improvement(average_win, average_loss, times_won, trades_closed) -> float:
+    #TODO Move to GPU
 
     reward: float = 0.0
     max_array_size: int = 12_000
