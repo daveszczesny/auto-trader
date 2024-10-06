@@ -26,12 +26,13 @@ logger = Logger(mode='test')
 # Agent improvment metrics
 # This is not reset per epsiode, but for every run of training
 
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
 agent_improvement_metric = {
-    "win_rate": torch.tensor([], dtype=torch.float32),
-    "average_win": torch.tensor([], dtype=torch.float32),
-    "average_loss": torch.tensor([], dtype=torch.float32),
-    "win_lose_ratio": torch.tensor([], dtype=torch.float32),
-    "steps": torch.tensor([], dtype=torch.float32)
+    "win_rate": torch.tensor([], dtype=torch.float32, device=device),
+    "average_win": torch.tensor([], dtype=torch.float32, device=device),
+    "average_loss": torch.tensor([], dtype=torch.float32, device=device),
+    "win_lose_ratio": torch.tensor([], dtype=torch.float32, device=device),
+    "steps": torch.tensor([], dtype=torch.float32, device=device)
 }
 
 
@@ -55,7 +56,7 @@ class SimpleForexEnv(gym.Env):
         self.data = self.data.select_dtypes(include=[float, int])
         self.data = self.data.to_dask_array(lengths=True)
         self.data = self.data.compute()
-        self.data = torch.tensor(self.data, dtype=torch.float32)
+        self.data = torch.tensor(self.data, dtype=torch.float32, device='cuda' if torch.cuda.is_available() else 'cpu')
 
         # Environment variables
         self.n_steps = len(self.data)
@@ -124,6 +125,7 @@ class SimpleForexEnv(gym.Env):
     def step(self, action: np.ndarray) -> Tuple[torch.Tensor, float, bool, bool, dict]:
 
         action: Action = self.construct_action(action)
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
         self.reward: float = 0.0
 
@@ -165,21 +167,27 @@ class SimpleForexEnv(gym.Env):
             logger.log_test('\nAction Tracker')
             logger.log_test(f'Trades opened: {self.action_tracker["trades_opened"]}')
             logger.log_test(f'Trades closed: {self.action_tracker["trades_closed"]}')
-            logger.log_test(f'Average win: {torch.tensor(average_win).round(decimals=2).item()}')
-            logger.log_test(f'Average loss: {torch.tensor(average_loss).round(decimals=2).item()}')
-            win_rate = (self.action_tracker['times_won'] / self.action_tracker['trades_closed']) if self.action_tracker['trades_closed'] > 0 else 0
-            logger.log_test(f'Win rate: {torch.tensor(win_rate).round(decimals=2).item()}')
+            logger.log_test(f'Average win: {torch.tensor(average_win, dtype=torch.float32, device=device).round(decimals=2).item()}')
+            logger.log_test(f'Average loss: {torch.tensor(average_loss, dtype=torch.float32, device=device).round(decimals=2).item()}')
+            win_rate = (self.action_tracker['times_won'] / self.action_tracker['trades_closed']) \
+                if self.action_tracker['trades_closed'] > 0 else 0
+            logger.log_test(f'Win rate: {torch.tensor(win_rate, dtype=torch.float32, device=device).round(decimals=2).item()}')
 
         logger.log_test(f"{self.current_step}, {action.action_type.value}, {len(open_trades)}, "
-                        f"{torch.tensor(action.data.lot_size).round(decimals=2).item() if action.data is not None else 0}, "
-                        f"{torch.tensor(self.current_price).round(decimals=5).item()}, {torch.tensor(self.current_low).round(decimals=5).item()}, "
-                        f"{torch.tensor(self.current_high).round(decimals=5).item()}, {torch.tensor(self.current_balance).round(decimals=2).item()}, "
-                        f"{torch.tensor(self.unrealised_pnl).round(decimals=2).item()}, {torch.tensor(self.reward).round(decimals=2).item()}")
+                        f"{torch.tensor(action.data.lot_size, dtype=torch.float32, device=device).round(decimals=2).item() \
+                           if action.data is not None else 0}, "
+                        f"{torch.tensor(self.current_price, dtype=torch.float32, device=device).round(decimals=5).item()}, "
+                        f"{torch.tensor(self.current_low, dtype=torch.float32, device=device).round(decimals=5).item()}, "
+                        f"{torch.tensor(self.current_high, dtype=torch.float32, device=device).round(decimals=5).item()}, "
+                        f"{torch.tensor(self.current_balance, dtype=torch.float32, device=device).round(decimals=2).item()}, "
+                        f"{torch.tensor(self.unrealised_pnl, dtype=torch.float32, device=device).round(decimals=2).item()}, "
+                        f"{torch.tensor(self.reward, dtype=torch.float32, device=device).round(decimals=2).item()}")
 
         logger.log_debug(f"Step: {self.current_step}, Action: {action.action_type}, "
-                        f"Balance: {torch.tensor(self.current_balance).round(decimals=2).item()}, "
-                        f"Unrealised PnL: {torch.tensor(self.unrealised_pnl).round(decimals=2).item()}, "
-                        f"Reward: {torch.tensor(self.reward).round(decimals=3).item()}, Trades Open: {len(open_trades)}")
+                        f"Balance: {torch.tensor(self.current_balance, dtype=torch.float32, device=device).round(decimals=2).item()}, "
+                        f"Unrealised PnL: {torch.tensor(self.unrealised_pnl, dtype=torch.float32, device=device).round(decimals=2).item()}, "
+                        f"Reward: {torch.tensor(self.reward, dtype=torch.float32, device=device).round(decimals=3).item()}, "
+                        f"Trades Open: {len(open_trades)}")
 
         self.current_step += 1
 
@@ -198,7 +206,7 @@ class SimpleForexEnv(gym.Env):
         :return: Tuple[np.array, dict]
         """
 
-        agent_improvement_metric['steps'] = torch.cat((agent_improvement_metric['steps'], torch.tensor([self.current_step], dtype=torch.float32)))
+        agent_improvement_metric['steps'] = torch.cat((agent_improvement_metric['steps'], torch.tensor([self.current_step], dtype=torch.float32, device='cuda' if torch.cuda.is_available() else 'cpu')))
 
         super().reset(seed=seed)
 
