@@ -28,7 +28,7 @@ logger = Logger(mode='test')
 
 DEVICE = 'cpu'
 
-#TODO Move to GPU
+# Stored on the GPU
 agent_improvement_metric = {
     "win_rate": torch.tensor([], dtype=torch.float32, device=DEVICE),
     "average_win": torch.tensor([], dtype=torch.float32, device=DEVICE),
@@ -56,12 +56,11 @@ class SimpleForexEnv(gym.Env):
 
         self.device = DEVICE
 
-        #TODO Move to GPU
         self.data = dd.read_csv(data)
         self.data = self.data.select_dtypes(include=[float, int])
         self.data = self.data.to_dask_array(lengths=True)
         self.data = self.data.compute()
-        self.data = torch.tensor(self.data, dtype=torch.float32, device=self.device)
+        self.data = torch.tensor(self.data, dtype=torch.float32, device=self.device)  # moves to GPU
 
         # Environment variables
         self.n_steps = len(self.data)
@@ -86,16 +85,16 @@ class SimpleForexEnv(gym.Env):
             dtype=np.float32
         )
 
+        # should this be on the GPU?
         self.current_step: int = 0
+        self.current_step_gpu = torch.tensor(self.current_step, dtype=torch.float32, device=self.device)
 
         self._update_current_state()
 
-        self.previous_unrealized_pnl: List[float] = []
-        self.reward: float = 0.0
+        self.previous_unrealized_pnl: torch.Tensor = torch.tensor([], dtype=torch.float32, device=self.device)
+        self.reward: torch.Tensor = torch.tensor(0.0, dtype=torch.float32, device=self.device)
         self.trade_window: int = ApplicationConstants.DEFAULT_TRADE_WINDOW
         self.done: bool = False
-        self.max_reward: float = 5.0
-        self.min_reward: float = -0.5
 
         # Agent variables
         self.initial_balance: float = initial_balance
@@ -116,16 +115,23 @@ class SimpleForexEnv(gym.Env):
 
     def _update_current_state(self):
         #TODO Move to GPU
+        step = None
         if torch.cuda.is_available() and not self.data.is_cuda:
             self.data = self.data.cuda()
+            # use gpu step
+            step = self.current_step_gpu
 
-        self.current_price: float = float(self.data[self.current_step, 6].item())
-        self.current_high: float = float(self.data[self.current_step, 5].item())
-        self.current_low: float = float(self.data[self.current_step, 4].item())
+        if step is None:
+            # use cpu step
+            step = self.current_step
+    
+        self.current_price: float = float(self.data[step, 6].item())
+        self.current_high: float = float(self.data[step, 5].item())
+        self.current_low: float = float(self.data[step, 4].item())
         self.current_emas: Tuple[float, float, float] = (
-            float(self.data[self.current_step, 10].item()),
-            float(self.data[self.current_step, 11].item()),
-            float(self.data[self.current_step, 12].item())
+            float(self.data[step, 10].item()),
+            float(self.data[step, 11].item()),
+            float(self.data[step, 12].item())
         )
 
     def step(self, action: np.ndarray) -> Tuple[torch.Tensor, float, bool, bool, dict]:
@@ -156,7 +162,7 @@ class SimpleForexEnv(gym.Env):
 
         if self.done:
             self.current_balance += close_all_trades(self.current_price)
-            self.previous_unrealized_pnl.clear()
+            self.previous_unrealized_pnl = torch.tensor([], dtype=torch.float32, device=self.device)
 
             if self.trade_window <= 0:
                 self.reward -= 1440
@@ -197,6 +203,7 @@ class SimpleForexEnv(gym.Env):
                         f"Trades Open: {len(open_trades)}")
 
         self.current_step += 1
+        self.current_step_gpu += 1
 
         return self._get_observation(), self.reward, self.done, False, {}
 
@@ -222,11 +229,9 @@ class SimpleForexEnv(gym.Env):
         self._update_current_state()
         self.reward = 0.0
         self.trade_window = ApplicationConstants.DEFAULT_TRADE_WINDOW
-        self.max_reward: float = 5.0
-        self.min_reward: float = -0.5
 
         reset_open_trades()
-        self.previous_unrealized_pnl.clear()
+        self.previous_unrealized_pnl = torch.tensor([], dtype=torch.float32, device=self.device)
 
         # Reset agent variables
         self.current_balance = self.initial_balance
@@ -344,8 +349,8 @@ class SimpleForexEnv(gym.Env):
 
 
     """
-    Can we vectorize the reward function?
-    If we can we should put it on the GPU.
+    Can we vectorize the reward function? (yes)
+    If we can we should put it on the GPU. (maybe)
     """
 
     def calculate_reward(self, action: Action) -> float:
