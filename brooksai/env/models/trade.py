@@ -3,11 +3,11 @@ from typing import Optional, Union, List, Dict
 
 from currency_converter import CurrencyConverter
 
-from brooksai.env.models.constants import TradeType, Environments,\
-    ApplicationConstants
+from brooksai.env.models.constants import TradeType, ApplicationConstants
 from brooksai.env.utils.converter import pip_to_profit, pips_to_price_chart
 
 c = CurrencyConverter()
+eur_to_gbp = c.convert(1, 'EUR', 'GBP')
 
 class Trade:
     """
@@ -75,13 +75,17 @@ class Trade:
         """
         # Formula for pip to cost
         # lot size * contract size * EUR TO GBP
-        return ((self.lot_size * ApplicationConstants.CONTRACT_SIZE) / ApplicationConstants.LEVERAGE) * c.convert(1, 'EUR', 'GBP')
+        return (
+            (self.lot_size * ApplicationConstants.CONTRACT_SIZE) / ApplicationConstants.LEVERAGE
+        ) * eur_to_gbp
 
 def check_margin(lot_size: float) -> float:
     """
     Check if the margin is enough to open a trade
     """
-    return ((lot_size * ApplicationConstants.CONTRACT_SIZE) / ApplicationConstants.LEVERAGE) * c.convert(1, 'EUR', 'GBP')
+    return (
+        (lot_size * ApplicationConstants.CONTRACT_SIZE) / ApplicationConstants.LEVERAGE
+    ) * eur_to_gbp
 
 
 def reset_open_trades():
@@ -177,12 +181,6 @@ def close_trade(trade: Trade, current_price: Optional[float]) -> float:
 
     value: float = get_trade_profit(trade, current_price)
     open_trades.remove(trade)
-
-    # if ENVIRONMENT != Environments.PROD:
-    #     with open('brooksai_logs.txt', 'a') as f:
-    #         f.write(f"Trade {trade.uuid}, TTL: {trade.ttl} closed with profit: {round(value, 2)}\n")
-
-    # TODO: Send request to broker to close trade
 
     return value - ApplicationConstants.TRANSACTION_FEE
 

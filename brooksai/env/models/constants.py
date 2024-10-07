@@ -73,11 +73,10 @@ class ApplicationConstants:
     TP_AND_SL_SCALE_FACTOR = 200
     SIMPLE_MAX_TRADES = 1
     TRANSACTION_FEE = 2.54
-
     BIG_LOSS = 50
+    DEVICE = 'cpu'
 
 class Environments(Enum):
     DEV = "dev"
     PROD = "prod"
     TEST = "test"
-
