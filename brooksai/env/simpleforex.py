@@ -10,12 +10,12 @@ from gymnasium import spaces
 
 from currency_converter import CurrencyConverter
 
-from brooksai.env.models.trade import reset_open_trades, get_trade_profit, close_trade,\
-    trigger_stop_or_take_profit, close_all_trades, check_margin, Trade, open_trades
-from brooksai.env.models.constants import TradeType, ActionType, Punishment, Fee,\
-    ApplicationConstants, Reward, action_type_mapping
+from brooksai.env.models.gputrade import GPUTrade, check_margin
+
+from brooksai.env.models.constants import ActionType,\
+    ApplicationConstants, action_type_mapping, \
+    GPUPunishment, GPUReward, GPUConstants
 from brooksai.env.models.action import Action, TradeAction
-from brooksai.env.utils.converter import pip_to_profit
 
 from brooksai.env.services.logs.logger import Logger
 
@@ -85,7 +85,6 @@ class SimpleForexEnv(gym.Env):
             dtype=np.float32
         )
 
-        # should this be on the GPU?
         self.current_step: int = 0
         self.current_step_gpu = torch.tensor(self.current_step, dtype=torch.float32, device=self.device)
 
@@ -101,6 +100,9 @@ class SimpleForexEnv(gym.Env):
         self.current_balance: float = initial_balance
         self.unrealised_pnl: float = 0.0
         self.previous_balance: float = 0.0
+
+
+        self.trade = GPUTrade()
 
 
         # Action Tracker
@@ -120,8 +122,7 @@ class SimpleForexEnv(gym.Env):
             self.data = self.data.cuda()
             # use gpu step
             step = self.current_step_gpu
-
-        if step is None:
+        elif not torch.cuda.is_available():
             # use cpu step
             step = self.current_step
     
@@ -137,13 +138,12 @@ class SimpleForexEnv(gym.Env):
     def step(self, action: np.ndarray) -> Tuple[torch.Tensor, float, bool, bool, dict]:
 
         action: Action = self.construct_action(action)
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
         self.reward: float = 0.0
 
         self._update_current_state()
 
-        trigger_stop_or_take_profit(self.current_high, self.current_low)
+        self.trade.trigger_sl_or_tp(self.current_high, self.current_low)
         self.calculate_reward(action)
         self.previous_balance = self.current_balance
         self.apply_actions(action)
@@ -156,12 +156,12 @@ class SimpleForexEnv(gym.Env):
         # 2. Agent can't cover marin
         # 3. Losses over 1/4 of original balance
         self.done = self.current_step == self.n_steps - 2 or \
-            self.current_balance * 0.5 <= check_margin(0.01) or \
+            self.current_balance * 0.5 <= check_margin(0.01)  or \
                 self.initial_balance * 0.75 >= self.current_balance - abs(self.unrealised_pnl if self.unrealised_pnl < 0 else 0) or \
                 self.trade_window <= 0
 
         if self.done:
-            self.current_balance += close_all_trades(self.current_price)
+            self.current_balance += self.trade.close_trade(self.current_price).item()
             self.previous_unrealized_pnl = torch.tensor([], dtype=torch.float32, device=self.device)
 
             if self.trade_window <= 0:
@@ -186,7 +186,7 @@ class SimpleForexEnv(gym.Env):
                 if self.action_tracker['trades_closed'] > 0 else 0
             logger.log_test(f'Win rate: {win_rate}')
 
-        logger.log_test(f"{self.current_step}, {action.action_type.value}, {len(open_trades)}, "
+        logger.log_test(f"{self.current_step}, {action.action_type.value}, "
                         f"{action.data.lot_size if action.data is not None else 0}, "
                         f"{self.current_price}, "
                         f"{self.current_low}, "
@@ -200,7 +200,7 @@ class SimpleForexEnv(gym.Env):
                         f"Balance: {self.current_balance}, "
                         f"Unrealised PnL: {self.unrealised_pnl}, "
                         f"Reward: {self.reward}, "
-                        f"Trades Open: {len(open_trades)}")
+        )
 
         self.current_step += 1
         self.current_step_gpu += 1
@@ -230,7 +230,7 @@ class SimpleForexEnv(gym.Env):
         self.reward = 0.0
         self.trade_window = ApplicationConstants.DEFAULT_TRADE_WINDOW
 
-        reset_open_trades()
+        self.trade.close_trade(0.0)
         self.previous_unrealized_pnl = torch.tensor([], dtype=torch.float32, device=self.device)
 
         # Reset agent variables
@@ -262,7 +262,7 @@ class SimpleForexEnv(gym.Env):
 
         if action_type in [ActionType.LONG, ActionType.SHORT]:
 
-            if raw_action[1].item() <= 0 or len(open_trades) >= ApplicationConstants.SIMPLE_MAX_TRADES:
+            if raw_action[1].item() <= 0 or self.trade.is_open:
                 action = Action(action_type=ActionType.DO_NOTHING)
                 self.trade_window -= 1
                 return action
@@ -289,13 +289,12 @@ class SimpleForexEnv(gym.Env):
             return action
 
         elif action_type is ActionType.CLOSE:
-            if len(open_trades) > 0:
-                trade = open_trades[0]
+            if self.trade.is_open:
 
                 action = Action(
                     action_type=action_type,
                     data=None,
-                    trade=trade
+                    trade=self.trade
                 )
                 return action
             else:
@@ -316,14 +315,13 @@ class SimpleForexEnv(gym.Env):
         if action.action_type is ActionType.DO_NOTHING:
             return
 
-        if len(open_trades) < ApplicationConstants.SIMPLE_MAX_TRADES\
+        if not self.trade.is_open \
             and action.action_type in [ActionType.LONG, ActionType.SHORT]:
 
-            Trade(
-                lot_size=action.data.lot_size,
-                open_price=self.current_price,
-                trade_type=TradeType.LONG if action.action_type is ActionType.LONG \
-                    else TradeType.SHORT,
+            self.trade.open_trade(
+                lot_size=torch.tensor(action.data.lot_size, dtype=torch.float32, device=self.device),
+                open_price=torch.tensor(self.current_price, dtype=torch.float32, device=self.device),
+                trade_type=torch.tensor(1 if action.action_type is ActionType.LONG else 0, dtype=torch.float32, device=self.device),
                 stop_loss=None,
                 take_profit=None
             )
@@ -333,19 +331,20 @@ class SimpleForexEnv(gym.Env):
 
         elif action.action_type is ActionType.CLOSE:
             if action.trade is not None:
-                logger.log_debug(f"Closing trade {action.trade.trade_type}."
-                           f"Opened: {action.trade.open_price}, "
-                           f"Closed: {self.current_price}. "
-                           f"Profit: {get_trade_profit(action.trade, self.current_price)}")
+                # logger.log_debug(f"Closing trade {action.trade.trade_type}."
+                #            f"Opened: {action.trade._open_price}, "
+                #            f"Closed: {self.current_price}. "
+                #            f"Profit: {get_trade_profit(action.trade, self.current_price)}")
                 self.action_tracker['trades_closed'] += 1
-                value = get_trade_profit(action.trade, self.current_price) - Fee.TRANSACTION_FEE
-                if  value  > 0:
+                value = self.trade.close_trade(self.current_price).item()  # Convert tensor to float
+                if value > 0:
                     self.action_tracker['total_won'] += value
                     self.action_tracker['times_won'] += 1
                 else:
-                     self.action_tracker['total_lost'] += value
-                     self.action_tracker['times_lost'] += 1
-                self.current_balance += close_trade(action.trade, self.current_price)
+                    self.action_tracker['total_lost'] += value
+                    self.action_tracker['times_lost'] += 1
+
+                self.current_balance += value
 
 
     """
@@ -360,117 +359,79 @@ class SimpleForexEnv(gym.Env):
         :return: float
         """
 
-        """
-        Generally in trading, doing nothing is usually the right thing to do.
-        So, we will give a small reward for doing nothing so that the agent
-            learns to not over trade, and let trades run.
-
-        We also don't want the agent to indefinitely hold trades. We want our agent
-            to be an intraday trader. Taking small but consistent profits.
-        So, we will give a small punishment for holding trades for too long.
-
-        We will also punish the agent for invalid actions. The agent will only be permitted
-            to have one trade open at a time. If the agent tries to open another trade
-            while one is already open, the agent will be punished.
-            or close a trade that does not exist, the agent will be punished.
-        
-        We will also punish the agent for closing trades too early. We want the agent to
-            let trades run, and not close trades too early. This, however, depends on the trade,
-            scalping is a valid trading strategy. But, we want the agent to learn to let trades run.
-        So, we will punish the agent for closing trades too early, if the agent is not
-            in profit.
-
-        We will reward the agent for closing trades in profit
-        To prevent the agent from holding trades too long we will punish the agent for holding trades
-            past the trade ttl. The trade ttl is the number of minutes the agent can hold a trade.
-        
-        We will also punish the agent for holding trades that are not in profit, for too long. Trades
-            can turn around, but we want the agent to learn to cut losses early. Again we want an
-            intraday trading bot. Not an investor.
-
-        We will also reward the agent for improving over time. We want the agent to learn from its
-            mistakes and improve over time.
-
-        """
-
         significant_loss_threshold = self.initial_balance * 0.05
         significant_gain_theshold = 80
 
         # initialize reward tensor
         reward_tensor = torch.tensor(0.0, dtype=torch.float32, device=self.device)
 
-        if open_trades:
-            trade_profits = torch.tensor([get_trade_profit(trade, self.current_price) for trade in open_trades], dtype=torch.float32, device=self.device)
-            ttls = torch.tensor([trade.ttl for trade in open_trades], dtype=torch.float32, device=self.device)
+        trade_profits = self.trade.calculate_pnl(self.current_price)
+        ttls = self.trade.ttl
 
-            # Check for invalid actions
-            invalid_long_short = len(open_trades) >= ApplicationConstants.SIMPLE_MAX_TRADES and action.action_type in [ActionType.LONG, ActionType.SHORT]
-            invalid_close = len(open_trades) <= 0 and action.action_type is ActionType.CLOSE
+        # Check for invalid actions
+        invalid_long_short = self.trade.is_open and action.action_type in [ActionType.LONG, ActionType.SHORT]
+        invalid_close = not self.trade.is_open and action.action_type is ActionType.CLOSE
 
-            if invalid_long_short or invalid_close:
-                reward_tensor -= Punishment.INVALID_ACTION
+        if invalid_long_short or invalid_close:
+            reward_tensor -= GPUPunishment.INVALID_ACTION
 
-            # Reward for closing trades within the trade ttl
-            if len(open_trades) > 0 and action.action_type is ActionType.CLOSE:
-                # Reward agent for closing a profitable scalp
-                profitable_scalp_mask = (ttls >= ApplicationConstants.DEFAULT_TRADE_TTL - 5) & (trade_profits > Fee.TRANSACTION_FEE)
-                reward_tensor += torch.sum(profitable_scalp_mask * Reward.TRADE_CLOSED_IN_PROFIT)
+        # Reward for closing trades within the trade ttl
+        if self.trade.is_open and action.action_type is ActionType.CLOSE:
+            # Reward agent for closing a profitable scalp
+            profitable_scalp_mask = (ttls >= GPUConstants.DEFAULT_TRADE_TTL - 5) & (trade_profits > self.trade.transaction_fee)
+            reward_tensor += torch.sum(profitable_scalp_mask * GPUReward.TRADE_CLOSED_IN_PROFIT)
 
-                # Punish agent for closing too early
-                early_scalp_mask = (ttls >= ApplicationConstants.DEFAULT_TRADE_TTL - 5) & (trade_profits <= Fee.TRANSACTION_FEE)
-                reward_tensor -= torch.sum(early_scalp_mask * Punishment.CLOSING_TOO_QUICK)
+            # Punish agent for closing too early
+            early_scalp_mask = (ttls >= GPUConstants.DEFAULT_TRADE_TTL - 5) & (trade_profits <= self.trade.transaction_fee)
+            reward_tensor -= torch.sum(early_scalp_mask * GPUPunishment.CLOSING_TOO_QUICK)
 
-                # Reward agent for closing trades within the trade ttl
-                within_ttl_mask = (ttls > 0) & (ttls <= ApplicationConstants.DEFAULT_TRADE_TTL - 5)
-                reward_tensor += torch.sum(within_ttl_mask * Reward.TRADE_CLOSED_WITHIN_TTL)
+            # Reward agent for closing trades within the trade ttl
+            within_ttl_mask = (ttls > 0) & (ttls <= GPUConstants.DEFAULT_TRADE_TTL - 5)
+            reward_tensor += torch.sum(within_ttl_mask * GPUReward.TRADE_CLOSED_WITHIN_TTL)
 
-                # Only reward if closed within ttl and in profit
-                profitable_within_ttl_mask = within_ttl_mask & (trade_profits > Fee.TRANSACTION_FEE)
-                reward_tensor += torch.sum(profitable_within_ttl_mask * Reward.TRADE_CLOSED_IN_PROFIT)
+            # Only reward if closed within ttl and in profit
+            profitable_within_ttl_mask = within_ttl_mask & (trade_profits > self.trade.transaction_fee)
+            reward_tensor += torch.sum(profitable_within_ttl_mask * GPUReward.TRADE_CLOSED_IN_PROFIT)
             
             # Punish the agent for holding onto a losing trade for too long
-            losing_trade_mask = (trade_profits < -(self.current_balance * 0.02)) & (ttls <= ApplicationConstants.DEFAULT_TRADE_TTL - 60)
-            reward_tensor -= torch.sum(losing_trade_mask * Punishment.HOLDING_LOSSING_TRADE)
+            losing_trade_mask = (trade_profits < -(self.current_balance * 0.02)) & (ttls <= GPUConstants.DEFAULT_TRADE_TTL - 60)
+            reward_tensor -= torch.sum(losing_trade_mask * GPUPunishment.HOLDING_LOSSING_TRADE)
 
             # Punish the agent for holding a trade with a big loss
             big_loss_mask = trade_profits < -significant_loss_threshold
-            reward_tensor -= torch.sum(big_loss_mask * Punishment.HOLDING_LOSSING_TRADE)
+            reward_tensor -= torch.sum(big_loss_mask * GPUPunishment.HOLDING_LOSSING_TRADE)
 
             # Punish the agent for holding a trade with too big a profit
             big_profit_mask = trade_profits > significant_gain_theshold
-            reward_tensor -= torch.sum(big_profit_mask * Punishment.RISKY_HOLDING)
+            reward_tensor -= torch.sum(big_profit_mask * GPUPunishment.RISKY_HOLDING)
 
             # Punish for holding trades too long
             holding_too_long_mask = ttls < 0
-            reward_tensor -= torch.sum(holding_too_long_mask * Punishment.HOLDING_TRADE_TOO_LONG)
+            reward_tensor -= torch.sum(holding_too_long_mask * GPUPunishment.HOLDING_TRADE_TOO_LONG)
 
             # Punish for holding trades WAY too long
             holding_way_too_long_mask = ttls < -ApplicationConstants.TRADE_TTL_OVERDRAFT_LIMIT
-            reward_tensor -= torch.sum(holding_way_too_long_mask * Punishment.TRADE_HELD_TOO_LONG)
+            reward_tensor -= torch.sum(holding_way_too_long_mask * GPUPunishment.TRADE_HELD_TOO_LONG)
 
         # Reward for doing nothing if no significant loss
         if action.action_type is ActionType.DO_NOTHING:
-            if not open_trades or trade_profits.max() >= -significant_loss_threshold:
-                reward_tensor += Reward.SMALL_REWARD_FOR_DOING_NOTHING
+            if not self.trade.is_open or trade_profits.max() >= -significant_loss_threshold:
+                reward_tensor += GPUReward.SMALL_REWARD_FOR_DOING_NOTHING
         
         # Punish agent if trade window expired
         if self.trade_window <= 0:
-            reward_tensor -= Punishment.NO_TRADE_OPEN
+            reward_tensor -= GPUPunishment.NO_TRADE_OPEN
         
         self.reward = reward_tensor.item()
         return self.reward
 
 
     def _calc_sum_margin(self) -> float:
-        return sum(trade.get_margin() for trade in open_trades)
+        return self.trade.get_margin().item()
 
     def _get_unrealized_pnl(self) -> float:
-        return float(sum(
-            pip_to_profit(self.current_price - trade.open_price, trade.lot_size) if
-            trade.trade_type is TradeType.LONG else
-            pip_to_profit(trade.open_price - self.current_price, trade.lot_size)
-            for trade in open_trades
-        ))
+        trade_profits = self.trade.calculate_pnl(self.current_price)
+        return trade_profits.sum().item()
 
     def _get_observation(self) -> np.ndarray:
         """
@@ -485,7 +446,7 @@ class SimpleForexEnv(gym.Env):
                 self.current_high,
                 self.current_low,
                 *self.current_emas,
-                len(open_trades)
+                1 if self.trade.is_open else 0,
                 ], dtype=torch.float32, device=self.device)
         return observation.cpu().numpy()
 
@@ -519,12 +480,13 @@ def _calculate_agent_improvement(average_win, average_loss, times_won, trades_cl
     win_rate_improved = (agent_improvement_metric['win_rate'][-1] > agent_improvement_metric['win_rate'][:-1].mean()).float()
     average_win_improved = (agent_improvement_metric['average_win'][-1] > agent_improvement_metric['average_win'][:-1].mean()).float()
 
-    reward += Reward.AGENT_IMPROVED * win_lose_ratio_improved
-    reward -= Punishment.AGENT_NOT_IMPROVING * (1 - win_lose_ratio_improved)
-    reward -= Punishment.NO_TRADE_OPEN * (agent_improvement_metric['win_rate'][-1] == 0).float()
-    reward += Reward.AGENT_IMPROVED * win_rate_improved
-    reward -= Punishment.AGENT_NOT_IMPROVING * (1 - win_rate_improved)
-    reward += Reward.AGENT_IMPROVED * average_win_improved
-    reward -= Punishment.AGENT_NOT_IMPROVING * (1 - average_win_improved)
+    reward += GPUReward.AGENT_IMPROVED * win_lose_ratio_improved
+    reward += GPUReward.AGENT_IMPROVED * win_rate_improved
+    reward += GPUReward.AGENT_IMPROVED * average_win_improved
+
+    reward -= GPUPunishment.AGENT_NOT_IMPROVING * (1 - win_lose_ratio_improved)
+    reward -= GPUPunishment.NO_TRADE_OPEN * (agent_improvement_metric['win_rate'][-1] == 0).float()
+    reward -= GPUPunishment.AGENT_NOT_IMPROVING * (1 - win_rate_improved)
+    reward -= GPUPunishment.AGENT_NOT_IMPROVING * (1 - average_win_improved)
 
     return reward

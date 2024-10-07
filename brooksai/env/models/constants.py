@@ -1,5 +1,7 @@
 from enum import Enum
 
+import torch
+
 class TradeType(Enum):
     LONG = 1
     SHORT = -1
@@ -48,10 +50,9 @@ class Reward:
 
     TRADE_CLOSED_WITHIN_TTL = 2
     SMALL_REWARD_FOR_DOING_NOTHING = 0.1
-    BETTER_AVERAGE_TRADE = 0.1
 
     AGENT_IMPROVED = 10
-    BETTER_AVERAGE_TRADE = 3
+
 
 
 action_type_mapping = {
@@ -75,6 +76,29 @@ class ApplicationConstants:
     TRANSACTION_FEE = 2.54
 
     BIG_LOSS = 50
+
+    DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+
+class GPUConstants:
+    DEFAULT_TRADE_TTL = torch.tensor(ApplicationConstants.DEFAULT_TRADE_TTL, dtype=torch.float32, device=torch.device(ApplicationConstants.DEVICE))
+
+class GPUPunishment:
+    RISKY_HOLDING = torch.tensor(3, dtype=torch.float32, device=torch.device(ApplicationConstants.DEVICE))
+    INVALID_ACTION = torch.tensor(5, dtype=torch.float32, device=torch.device(ApplicationConstants.DEVICE))
+    CLOSING_TOO_QUICK = torch.tensor(1.5, dtype=torch.float32, device=torch.device(ApplicationConstants.DEVICE))
+    HOLDING_LOSSING_TRADE = torch.tensor(2, dtype=torch.float32, device=torch.device(ApplicationConstants.DEVICE))
+    HOLDING_TRADE_TOO_LONG = torch.tensor(2, dtype=torch.float32, device=torch.device(ApplicationConstants.DEVICE))
+    HOLD_TRADE_TOO_LONG = torch.tensor(2, dtype=torch.float32, device=torch.device(ApplicationConstants.DEVICE))
+    TRADE_HELD_TOO_LONG = torch.tensor(20, dtype=torch.float32, device=torch.device(ApplicationConstants.DEVICE))
+    NO_TRADE_OPEN = torch.tensor(5, dtype=torch.float32, device=torch.device(ApplicationConstants.DEVICE))
+    AGENT_NOT_IMPROVING = torch.tensor(5, dtype=torch.float32, device=torch.device(ApplicationConstants.DEVICE))
+
+class GPUReward:
+    TRADE_CLOSED_IN_PROFIT = torch.tensor(10, dtype=torch.float32, device=torch.device(ApplicationConstants.DEVICE))
+    TRADE_CLOSED_WITHIN_TTL = torch.tensor(2, dtype=torch.float32, device=torch.device(ApplicationConstants.DEVICE))
+    SMALL_REWARD_FOR_DOING_NOTHING = torch.tensor(0.1, dtype=torch.float32, device=torch.device(ApplicationConstants.DEVICE))
+    AGENT_IMPROVED = torch.tensor(10, dtype=torch.float32, device=torch.device(ApplicationConstants.DEVICE))
+
 
 class Environments(Enum):
     DEV = "dev"
