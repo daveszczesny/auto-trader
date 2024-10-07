@@ -39,10 +39,8 @@ class TradeTest(unittest.TestCase):
         reset_open_trades()
         self.assertEqual(len(open_trades), 0)
 
-    @patch('brooksai.env.models.trade.c')
-    def test_get_margin(self, mock_currency_converter):
+    def test_get_margin(self):
         # Mock the currency converter
-        mock_currency_converter.convert.return_value = 0.85  # Mock conversion rate
 
         # Initialize a trade
         trade = Trade(
@@ -53,10 +51,11 @@ class TradeTest(unittest.TestCase):
 
         # Calculate the margin
         margin = trade.get_margin()
-        print(margin)
+
+        from brooksai.env.models.trade import eur_to_gbp
 
         # Check if the margin is calculated correctly
-        expected_margin = ((1 * ApplicationConstants.CONTRACT_SIZE) / ApplicationConstants.LEVERAGE) * 0.85
+        expected_margin = ((1 * ApplicationConstants.CONTRACT_SIZE) / ApplicationConstants.LEVERAGE) * eur_to_gbp
         self.assertAlmostEqual(margin, expected_margin)
 
 

@@ -144,7 +144,8 @@ class SimpleForexEnv(gym.Env):
         # 3. Losses over 1/4 of original balance
         self.done = self.current_step == self.n_steps - 2 or \
             self.current_balance * 0.5 <= check_margin(0.01) or \
-                self.initial_balance * 0.75 >= self.current_balance - abs(self.unrealised_pnl if self.unrealised_pnl < 0 else 0) or \
+                self.initial_balance * 0.75 >= self.current_balance - \
+                    abs(self.unrealised_pnl if self.unrealised_pnl < 0 else 0) or \
                 self.trade_window <= 0
 
         if self.done:
@@ -155,13 +156,19 @@ class SimpleForexEnv(gym.Env):
                 self.reward -= 1440
 
             # Log tracker
-            
-            average_win = float(self.action_tracker['total_won']) / float(self.action_tracker['trades_closed']) \
-                if self.action_tracker['trades_closed'] > 0 else 0
-            average_loss = float(self.action_tracker['total_lost']) / float(self.action_tracker['trades_closed']) \
-                if self.action_tracker['trades_closed'] > 0 else 0
+            average_win = float(
+                self.action_tracker['total_won']) / float(self.action_tracker['trades_closed']
+                ) if self.action_tracker['trades_closed'] > 0 else 0
+            average_loss = float(
+                self.action_tracker['total_lost']) / float(self.action_tracker['trades_closed']
+                ) if self.action_tracker['trades_closed'] > 0 else 0
 
-            self.reward += _calculate_agent_improvement(average_win, average_loss, self.action_tracker['times_won'], self.action_tracker['trades_closed'])
+            self.reward += _calculate_agent_improvement(
+                average_win,
+                average_loss,
+                self.action_tracker['times_won'],
+                self.action_tracker['trades_closed']
+            )
 
             #Logging would use variables from the GPU, how can we log this?
             logger.log_test('\nAction Tracker')
@@ -206,7 +213,14 @@ class SimpleForexEnv(gym.Env):
         :return: Tuple[np.array, dict]
         """
 
-        agent_improvement_metric['steps'] = torch.cat((agent_improvement_metric['steps'], torch.tensor([self.current_step], dtype=torch.float32, device=ApplicationConstants.DEVICE)))
+        agent_improvement_metric['steps'] = torch.cat(
+            (agent_improvement_metric['steps'],
+            torch.tensor(
+                [self.current_step],
+                dtype=torch.float32,
+                device=ApplicationConstants.DEVICE)
+            )
+        )
 
         super().reset(seed=seed)
 
@@ -241,59 +255,48 @@ class SimpleForexEnv(gym.Env):
     def construct_action(self, raw_action: torch.Tensor) -> Action:
         """
         Construct the Agent Action from raw action values
-        :param raw_action: np.ndarray
+        :param raw_action: torch.Tensor
         :return: Action
         """
 
-        action_type = action_type_mapping.get(int(raw_action[0].item() * len(action_type_mapping)), \
-                                              ActionType.DO_NOTHING)
+        def get_action_type(raw_action: torch.Tensor) -> ActionType:
+            index = int(raw_action[0].item() * len(action_type_mapping))
+            return action_type_mapping.get(index, ActionType.DO_NOTHING)
 
-        if action_type in [ActionType.LONG, ActionType.SHORT]:
+        def is_invalid_action(action_type: ActionType, raw_action: torch.Tensor) -> bool:
+            return (
+                action_type in [ActionType.LONG, ActionType.SHORT] and \
+                    (raw_action[1].item() <= 0 or \
+                        len(open_trades) >= ApplicationConstants.SIMPLE_MAX_TRADES)) or \
+                action_type is ActionType.CLOSE and len(open_trades) <= 0
 
-            if raw_action[1].item() <= 0 or len(open_trades) >= ApplicationConstants.SIMPLE_MAX_TRADES:
-                action = Action(action_type=ActionType.DO_NOTHING)
-                self.trade_window -= 1
-                return action
+        def create_trade_action(raw_action: torch.Tensor) -> TradeAction:
+            lot_size = raw_action[1].item()
+            stop_loss = (raw_action[2].item() * ApplicationConstants.TP_AND_SL_SCALE_FACTOR
+                if raw_action[2] > 0 else None)
+            take_profit = (raw_action[3].item() * ApplicationConstants.TP_AND_SL_SCALE_FACTOR
+                if raw_action[3].item() > 0 else None)
 
-            lot_size: float = raw_action[1].item()
-            stop_loss = float(raw_action[2].item()) * ApplicationConstants.TP_AND_SL_SCALE_FACTOR \
-                if raw_action[2] > 0 else None
-            take_profit = float(raw_action[3].item()) * ApplicationConstants.TP_AND_SL_SCALE_FACTOR \
-                if raw_action[3].item() > 0 else None
-
-            trade_action = TradeAction(
+            return TradeAction(
                 stop_loss=stop_loss,
                 take_profit=take_profit,
                 lot_size=lot_size
             )
 
-            action = Action(
-                action_type=action_type,
-                data=trade_action,
-                trade=None
-            )
+        action_type = get_action_type(raw_action)
 
-            self.trade_window = ApplicationConstants.DEFAULT_TRADE_WINDOW
-            return action
-
-        elif action_type is ActionType.CLOSE:
-            if len(open_trades) > 0:
-                trade = open_trades[0]
-
-                action = Action(
-                    action_type=action_type,
-                    data=None,
-                    trade=trade
-                )
-                return action
-            else:
-                action = Action(action_type=ActionType.DO_NOTHING)
-                self.trade_window -= 1
-                return action
-        else:
+        if is_invalid_action(action_type, raw_action):
             self.trade_window -= 1
-            action = Action(action_type=action_type)
-            return action
+            return Action(action_type=ActionType.DO_NOTHING)
+
+        if action_type in [ActionType.LONG, ActionType.SHORT]:
+            trade_action = create_trade_action(raw_action)
+            return Action(action_type=action_type, data=trade_action, trade=None)
+
+        if action_type is ActionType.CLOSE:
+            return Action(action_type=action_type, data=None, trade=open_trades[0])
+
+        return Action(action_type=ActionType.DO_NOTHING)
 
     def apply_actions(self, action: Action) -> None:
         """
@@ -301,12 +304,7 @@ class SimpleForexEnv(gym.Env):
         :param action: Action
         """
 
-        if action.action_type is ActionType.DO_NOTHING:
-            return
-
-        if len(open_trades) < ApplicationConstants.SIMPLE_MAX_TRADES\
-            and action.action_type in [ActionType.LONG, ActionType.SHORT]:
-
+        if action.action_type in [ActionType.LONG, ActionType.SHORT]:
             Trade(
                 lot_size=action.data.lot_size,
                 open_price=self.current_price,
@@ -315,31 +313,22 @@ class SimpleForexEnv(gym.Env):
                 stop_loss=None,
                 take_profit=None
             )
-
             self.action_tracker['trades_opened'] += 1
-            return
 
-        elif action.action_type is ActionType.CLOSE:
-            if action.trade is not None:
-                logger.log_debug(f"Closing trade {action.trade.trade_type}."
-                           f"Opened: {action.trade.open_price}, "
-                           f"Closed: {self.current_price}. "
-                           f"Profit: {get_trade_profit(action.trade, self.current_price)}")
-                self.action_tracker['trades_closed'] += 1
-                value = get_trade_profit(action.trade, self.current_price) - Fee.TRANSACTION_FEE
-                if  value  > 0:
-                    self.action_tracker['total_won'] += value
-                    self.action_tracker['times_won'] += 1
-                else:
-                     self.action_tracker['total_lost'] += value
-                     self.action_tracker['times_lost'] += 1
-                self.current_balance += close_trade(action.trade, self.current_price)
+        else:
+            if not action.trade:
+                return
 
+            self.action_tracker['trades_closed'] += 1
+            value = get_trade_profit(action.trade, self.current_price) - Fee.TRANSACTION_FEE
 
-    """
-    Can we vectorize the reward function?
-    If we can we should put it on the GPU.
-    """
+            if  value  > 0:
+                self.action_tracker['total_won'] += value
+                self.action_tracker['times_won'] += 1
+            else:
+                self.action_tracker['total_lost'] += value
+                self.action_tracker['times_lost'] += 1
+            self.current_balance += close_trade(action.trade, self.current_price)
 
     def calculate_reward(self, action: Action) -> float:
         """
@@ -347,103 +336,59 @@ class SimpleForexEnv(gym.Env):
         :param action: Action
         :return: float
         """
-
-        """
-        Generally in trading, doing nothing is usually the right thing to do.
-        So, we will give a small reward for doing nothing so that the agent
-            learns to not over trade, and let trades run.
-
-        We also don't want the agent to indefinitely hold trades. We want our agent
-            to be an intraday trader. Taking small but consistent profits.
-        So, we will give a small punishment for holding trades for too long.
-
-        We will also punish the agent for invalid actions. The agent will only be permitted
-            to have one trade open at a time. If the agent tries to open another trade
-            while one is already open, the agent will be punished.
-            or close a trade that does not exist, the agent will be punished.
-        
-        We will also punish the agent for closing trades too early. We want the agent to
-            let trades run, and not close trades too early. This, however, depends on the trade,
-            scalping is a valid trading strategy. But, we want the agent to learn to let trades run.
-        So, we will punish the agent for closing trades too early, if the agent is not
-            in profit.
-
-        We will reward the agent for closing trades in profit
-        To prevent the agent from holding trades too long we will punish the agent for holding trades
-            past the trade ttl. The trade ttl is the number of minutes the agent can hold a trade.
-        
-        We will also punish the agent for holding trades that are not in profit, for too long. Trades
-            can turn around, but we want the agent to learn to cut losses early. Again we want an
-            intraday trading bot. Not an investor.
-
-        We will also reward the agent for improving over time. We want the agent to learn from its
-            mistakes and improve over time.
-
-        """
+        # TODO Refactor this function
 
         significant_loss_threshold = self.current_balance * 0.05
         significant_gain_threshold = 80
+        trade_profit = get_trade_profit(open_trades[0], self.current_price) if open_trades else 0
 
-        # Check for invalid actions
-        if len(open_trades) >= ApplicationConstants.SIMPLE_MAX_TRADES and \
-                action.action_type in [ActionType.LONG, ActionType.SHORT]:
+        is_trade_open = len(open_trades) > 0
+        invalid_trade = is_trade_open and action.action_type in [ActionType.LONG, ActionType.SHORT]
+        invalid_close = not is_trade_open and action.action_type is ActionType.CLOSE
+
+        # Check invalid actions
+        if invalid_trade or invalid_close:
             self.reward -= Punishment.INVALID_ACTION
 
-        elif len(open_trades) <= 0 and action.action_type is ActionType.CLOSE:
-            self.reward -= Punishment.INVALID_ACTION
+        if is_trade_open:
+            if action.action_type is ActionType.CLOSE:
+                ttl = open_trades[0].ttl
+                if ttl >= ApplicationConstants.DEFAULT_TRADE_TTL - 5:
+                    # Reward agent for closing a profitable scalp
+                    if trade_profit > Fee.TRANSACTION_FEE:
+                        self.reward += Reward.TRADE_CLOSED_IN_PROFIT
+                    # If scalp is not profitable, punish agent for closing too early
+                    else:
+                        self.reward -= Punishment.CLOSING_TOO_QUICK
+                if 0 < ttl <= ApplicationConstants.DEFAULT_TRADE_TTL - 5:
+                    self.reward += Reward.TRADE_CLOSED_WITHIN_TTL
 
-        elif len(open_trades) > 0 and action.action_type is ActionType.CLOSE:
-            # Reward for closing trades within the trade ttl
+                    if trade_profit > Fee.TRANSACTION_FEE:
+                        self.reward += Reward.TRADE_CLOSED_IN_PROFIT
 
-            # Reward agent for closing a profitable scalp
-            if open_trades[0].ttl >= ApplicationConstants.DEFAULT_TRADE_TTL - 5 and \
-                get_trade_profit(open_trades[0], self.current_price) > Fee.TRANSACTION_FEE:
-                self.reward += Reward.TRADE_CLOSED_IN_PROFIT
+                if ttl < 0:
+                    self.reward -= Punishment.HOLDING_TRADE_TOO_LONG
 
-            # If scalp is not profitable, punish agent for closing too early
-            elif open_trades[0].ttl >= ApplicationConstants.DEFAULT_TRADE_TTL - 5:
-                self.reward -= Punishment.CLOSING_TOO_QUICK
-            
-            # Reward agent for closing trades within the trade ttl
-            if 0 < open_trades[0].ttl <= ApplicationConstants.DEFAULT_TRADE_TTL - 5:
-                self.reward += Reward.TRADE_CLOSED_WITHIN_TTL
+                if ttl < -ApplicationConstants.TRADE_TTL_OVERDRAFT_LIMIT:
+                    self.reward -= Punishment.TRADE_HELD_TOO_LONG * 5
 
-                # Only rewarded if closed within ttl
-                # Reward for closing trades in profit
-                if get_trade_profit(open_trades[0], self.current_price) > Fee.TRANSACTION_FEE:
-                    self.reward += Reward.TRADE_CLOSED_IN_PROFIT
-
-        # Punish the agent for holding onto a lossing trade for too long (2 hours)
-        if len(open_trades) > 0 and get_trade_profit(open_trades[0], self.current_price) < -(self.current_balance * 0.02) and \
-            open_trades[0].ttl <= ApplicationConstants.DEFAULT_TRADE_TTL - 60:
-            self.reward -= Punishment.HOLDING_LOSSING_TRADE
-        
-        # Punish the agent for holding a trade with a big loss
-        if len(open_trades) > 0 and get_trade_profit(open_trades[0], self.current_price) < - significant_loss_threshold:
-            self.reward -= Punishment.HOLDING_LOSSING_TRADE
-
-        # Punish the agent for holding a trade with a big profit
-        if len(open_trades) > 0 and get_trade_profit(open_trades[0], self.current_price) > significant_gain_threshold:
-            self.reward -= Punishment.RISKY_HOLDING
-
-        # Reward for doing nothing
-        if action.action_type is ActionType.DO_NOTHING:
-            if len(open_trades) > 0 and get_trade_profit(open_trades[0], self.current_price) < -significant_loss_threshold:
-                pass
-            else:
+            # Punish the agent for holding onto a lossing trade for too long (1 hours)
+            if trade_profit < -(self.current_balance * 0.02) and \
+                open_trades[0].ttl <= ApplicationConstants.DEFAULT_TRADE_TTL - 60:
+                self.reward -= Punishment.HOLDING_LOSSING_TRADE
+            # Punish the agent for holding a trade with a big loss
+            if trade_profit < -significant_loss_threshold:
+                self.reward -= Punishment.HOLDING_LOSSING_TRADE
+            # Reward for doing nothing
+            elif action.action_type is ActionType.DO_NOTHING:
                 self.reward += Reward.SMALL_REWARD_FOR_DOING_NOTHING
+            # Punish the agent for holding a trade with a big profit
+            if trade_profit > significant_gain_threshold:
+                self.reward -= Punishment.RISKY_HOLDING
 
         if self.trade_window <= 0:
             self.reward -= Punishment.NO_TRADE_OPEN
 
-        for trade in open_trades:
-            # Punish for holding trades too long
-            if trade.ttl < 0:
-                self.reward -= Punishment.HOLDING_TRADE_TOO_LONG
-
-            # Punish for holding trades too long
-            if trade.ttl < - ApplicationConstants.TRADE_TTL_OVERDRAFT_LIMIT:
-                self.reward -= Punishment.TRADE_HELD_TOO_LONG * 5
 
     def _calc_sum_margin(self) -> float:
         return sum(trade.get_margin() for trade in open_trades)
@@ -486,20 +431,61 @@ def _calculate_agent_improvement(average_win, average_loss, times_won, trades_cl
 
     # Calculate win rate
     win_rate = (times_won / trades_closed) if trades_closed > 0 else 0
-    agent_improvement_metric['win_rate'] = torch.cat((agent_improvement_metric['win_rate'], torch.tensor([win_rate], dtype=torch.float32, device=ApplicationConstants.DEVICE)))
+    agent_improvement_metric['win_rate'] = torch.cat((
+        agent_improvement_metric['win_rate'],
+        torch.tensor(
+            [win_rate],
+            dtype=torch.float32,
+            device=ApplicationConstants.DEVICE
+        )
+    ))
 
     # Calculate average win and loss
-    agent_improvement_metric['average_win'] = torch.cat((agent_improvement_metric['average_win'], torch.tensor([average_win], dtype=torch.float32, device=ApplicationConstants.DEVICE)))
-    agent_improvement_metric['average_loss'] = torch.cat((agent_improvement_metric['average_loss'], torch.tensor([average_loss], dtype=torch.float32, device=ApplicationConstants.DEVICE)))
+    agent_improvement_metric['average_win'] = torch.cat((
+        agent_improvement_metric['average_win'],
+        torch.tensor(
+            [average_win],
+            dtype=torch.float32,
+            device=ApplicationConstants.DEVICE
+        )
+    ))
+
+    agent_improvement_metric['average_loss'] = torch.cat((
+        agent_improvement_metric['average_loss'],
+        torch.tensor(
+            [average_loss],
+            dtype=torch.float32,
+            device=ApplicationConstants.DEVICE
+        )
+    ))
+
     # Calculate average win and loss
     win_lose_ratio = (average_win / abs(average_loss)) if abs(average_loss) > 0 else 1
-    agent_improvement_metric['win_lose_ratio'] = torch.cat((agent_improvement_metric['win_lose_ratio'], torch.tensor([win_lose_ratio], dtype=torch.float32, device=ApplicationConstants.DEVICE)))
+    agent_improvement_metric['win_lose_ratio'] = torch.cat((
+        agent_improvement_metric['win_lose_ratio'],
+        torch.tensor(
+            [win_lose_ratio],
+            dtype=torch.float32,
+            device=ApplicationConstants.DEVICE
+        )
+    ))
 
 
     # Vectorized reward calculation
-    win_lose_ratio_improved = (agent_improvement_metric['win_lose_ratio'][-1] > agent_improvement_metric['win_lose_ratio'][:-1].mean()).float()
-    win_rate_improved = (agent_improvement_metric['win_rate'][-1] > agent_improvement_metric['win_rate'][:-1].mean()).float()
-    average_win_improved = (agent_improvement_metric['average_win'][-1] > agent_improvement_metric['average_win'][:-1].mean()).float()
+    win_lose_ratio_improved = (
+        agent_improvement_metric['win_lose_ratio'][-1] > \
+            agent_improvement_metric['win_lose_ratio'][:-1].mean()
+    ).float()
+
+    win_rate_improved = (
+        agent_improvement_metric['win_rate'][-1] > \
+            agent_improvement_metric['win_rate'][:-1].mean()
+    ).float()
+
+    average_win_improved = (
+        agent_improvement_metric['average_win'][-1] > \
+            agent_improvement_metric['average_win'][:-1].mean()
+    ).float()
 
     reward += Reward.AGENT_IMPROVED * win_lose_ratio_improved
     reward -= Punishment.AGENT_NOT_IMPROVING * (1 - win_lose_ratio_improved)
