@@ -3,7 +3,7 @@ from stable_baselines3 import PPO
 
 import torch
 
-device = 'cpu'
+device = 'cuda'
 
 class PPOAgent:
     def __init__(self, env: gym.Env):

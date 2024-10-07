@@ -26,7 +26,7 @@ logger = Logger(mode='test')
 # Agent improvment metrics
 # This is not reset per epsiode, but for every run of training
 
-DEVICE = 'cpu'
+DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 # Stored on the GPU
 agent_improvement_metric = {
@@ -121,10 +121,11 @@ class SimpleForexEnv(gym.Env):
         if torch.cuda.is_available() and not self.data.is_cuda:
             self.data = self.data.cuda()
             # use gpu step
-            step = self.current_step_gpu
-        elif not torch.cuda.is_available():
-            # use cpu step
-            step = self.current_step
+        
+        if torch.cuda.is_available():
+            step = torch.tensor(self.current_step_gpu, dtype=torch.int64, device=self.device)
+        else:
+            step = int(self.current_step)
     
         self.current_price: float = float(self.data[step, 6].item())
         self.current_high: float = float(self.data[step, 5].item())
@@ -177,30 +178,30 @@ class SimpleForexEnv(gym.Env):
             self.reward += _calculate_agent_improvement(average_win, average_loss, self.action_tracker['times_won'], self.action_tracker['trades_closed'])
 
             #Logging would use variables from the GPU, how can we log this?
-            logger.log_test('\nAction Tracker')
-            logger.log_test(f'Trades opened: {self.action_tracker["trades_opened"]}')
-            logger.log_test(f'Trades closed: {self.action_tracker["trades_closed"]}')
-            logger.log_test(f'Average win: {average_win}')
-            logger.log_test(f'Average loss: {average_loss}')
-            win_rate = (self.action_tracker['times_won'] / self.action_tracker['trades_closed']) \
-                if self.action_tracker['trades_closed'] > 0 else 0
-            logger.log_test(f'Win rate: {win_rate}')
+        #     logger.log_test('\nAction Tracker')
+        #     logger.log_test(f'Trades opened: {self.action_tracker["trades_opened"]}')
+        #     logger.log_test(f'Trades closed: {self.action_tracker["trades_closed"]}')
+        #     logger.log_test(f'Average win: {average_win}')
+        #     logger.log_test(f'Average loss: {average_loss}')
+        #     win_rate = (self.action_tracker['times_won'] / self.action_tracker['trades_closed']) \
+        #         if self.action_tracker['trades_closed'] > 0 else 0
+        #     logger.log_test(f'Win rate: {win_rate}')
 
-        logger.log_test(f"{self.current_step}, {action.action_type.value}, "
-                        f"{action.data.lot_size if action.data is not None else 0}, "
-                        f"{self.current_price}, "
-                        f"{self.current_low}, "
-                        f"{self.current_high}, "
-                        f"{self.current_balance}, "
-                        f"{self.unrealised_pnl}, "
-                        f"{self.reward}"
-        )
+        # logger.log_test(f"{self.current_step}, {action.action_type.value}, "
+        #                 f"{action.data.lot_size if action.data is not None else 0}, "
+        #                 f"{self.current_price}, "
+        #                 f"{self.current_low}, "
+        #                 f"{self.current_high}, "
+        #                 f"{self.current_balance}, "
+        #                 f"{self.unrealised_pnl}, "
+        #                 f"{self.reward}"
+        # )
 
-        logger.log_debug(f"Step: {self.current_step}, Action: {action.action_type}, "
-                        f"Balance: {self.current_balance}, "
-                        f"Unrealised PnL: {self.unrealised_pnl}, "
-                        f"Reward: {self.reward}, "
-        )
+        # logger.log_debug(f"Step: {self.current_step}, Action: {action.action_type}, "
+        #                 f"Balance: {self.current_balance}, "
+        #                 f"Unrealised PnL: {self.unrealised_pnl}, "
+        #                 f"Reward: {self.reward}, "
+        # )
 
         self.current_step += 1
         self.current_step_gpu += 1
