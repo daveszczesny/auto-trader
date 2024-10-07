@@ -26,15 +26,12 @@ logger = Logger(mode='test')
 # Agent improvment metrics
 # This is not reset per epsiode, but for every run of training
 
-DEVICE = 'cpu'
-
-#TODO Move to GPU
 agent_improvement_metric = {
-    "win_rate": torch.tensor([], dtype=torch.float32, device=DEVICE),
-    "average_win": torch.tensor([], dtype=torch.float32, device=DEVICE),
-    "average_loss": torch.tensor([], dtype=torch.float32, device=DEVICE),
-    "win_lose_ratio": torch.tensor([], dtype=torch.float32, device=DEVICE),
-    "steps": torch.tensor([], dtype=torch.float32, device=DEVICE)
+    "win_rate": torch.tensor([], dtype=torch.float32, device=ApplicationConstants.DEVICE),
+    "average_win": torch.tensor([], dtype=torch.float32, device=ApplicationConstants.DEVICE),
+    "average_loss": torch.tensor([], dtype=torch.float32, device=ApplicationConstants.DEVICE),
+    "win_lose_ratio": torch.tensor([], dtype=torch.float32, device=ApplicationConstants.DEVICE),
+    "steps": torch.tensor([], dtype=torch.float32, device=ApplicationConstants.DEVICE)
 }
 
 
@@ -54,14 +51,12 @@ class SimpleForexEnv(gym.Env):
                  initial_balance: float = 1_000.0,
                  render_mode: Optional[str] = None):
 
-        self.device = DEVICE
-
         #TODO Move to GPU
         self.data = dd.read_csv(data)
         self.data = self.data.select_dtypes(include=[float, int])
         self.data = self.data.to_dask_array(lengths=True)
         self.data = self.data.compute()
-        self.data = torch.tensor(self.data, dtype=torch.float32, device=self.device)
+        self.data = torch.tensor(self.data, dtype=torch.float32, device=ApplicationConstants.DEVICE)
 
         # Environment variables
         self.n_steps = len(self.data)
@@ -115,7 +110,6 @@ class SimpleForexEnv(gym.Env):
         }
 
     def _update_current_state(self):
-        #TODO Move to GPU
         if torch.cuda.is_available() and not self.data.is_cuda:
             self.data = self.data.cuda()
 
@@ -131,7 +125,6 @@ class SimpleForexEnv(gym.Env):
     def step(self, action: np.ndarray) -> Tuple[torch.Tensor, float, bool, bool, dict]:
 
         action: Action = self.construct_action(action)
-        device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
         self.reward: float = 0.0
 
@@ -213,7 +206,7 @@ class SimpleForexEnv(gym.Env):
         :return: Tuple[np.array, dict]
         """
 
-        agent_improvement_metric['steps'] = torch.cat((agent_improvement_metric['steps'], torch.tensor([self.current_step], dtype=torch.float32, device=self.device)))
+        agent_improvement_metric['steps'] = torch.cat((agent_improvement_metric['steps'], torch.tensor([self.current_step], dtype=torch.float32, device=ApplicationConstants.DEVICE)))
 
         super().reset(seed=seed)
 
@@ -477,13 +470,11 @@ class SimpleForexEnv(gym.Env):
                 self.current_low,
                 *self.current_emas,
                 len(open_trades)
-                ], dtype=torch.float32, device=self.device)
+                ], dtype=torch.float32, device=ApplicationConstants.DEVICE)
         return observation.cpu().numpy()
 
 
 def _calculate_agent_improvement(average_win, average_loss, times_won, trades_closed) -> float:
-    #TODO Move to GPU
-
     reward: float = 0.0
     max_array_size: int = 12_000
 
@@ -495,14 +486,14 @@ def _calculate_agent_improvement(average_win, average_loss, times_won, trades_cl
 
     # Calculate win rate
     win_rate = (times_won / trades_closed) if trades_closed > 0 else 0
-    agent_improvement_metric['win_rate'] = torch.cat((agent_improvement_metric['win_rate'], torch.tensor([win_rate], dtype=torch.float32, device=DEVICE)))
+    agent_improvement_metric['win_rate'] = torch.cat((agent_improvement_metric['win_rate'], torch.tensor([win_rate], dtype=torch.float32, device=ApplicationConstants.DEVICE)))
 
     # Calculate average win and loss
-    agent_improvement_metric['average_win'] = torch.cat((agent_improvement_metric['average_win'], torch.tensor([average_win], dtype=torch.float32, device=DEVICE)))
-    agent_improvement_metric['average_loss'] = torch.cat((agent_improvement_metric['average_loss'], torch.tensor([average_loss], dtype=torch.float32, device=DEVICE)))
+    agent_improvement_metric['average_win'] = torch.cat((agent_improvement_metric['average_win'], torch.tensor([average_win], dtype=torch.float32, device=ApplicationConstants.DEVICE)))
+    agent_improvement_metric['average_loss'] = torch.cat((agent_improvement_metric['average_loss'], torch.tensor([average_loss], dtype=torch.float32, device=ApplicationConstants.DEVICE)))
     # Calculate average win and loss
     win_lose_ratio = (average_win / abs(average_loss)) if abs(average_loss) > 0 else 1
-    agent_improvement_metric['win_lose_ratio'] = torch.cat((agent_improvement_metric['win_lose_ratio'], torch.tensor([win_lose_ratio], dtype=torch.float32, device=DEVICE)))
+    agent_improvement_metric['win_lose_ratio'] = torch.cat((agent_improvement_metric['win_lose_ratio'], torch.tensor([win_lose_ratio], dtype=torch.float32, device=ApplicationConstants.DEVICE)))
 
 
     # Vectorized reward calculation

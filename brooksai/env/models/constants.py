@@ -76,6 +76,9 @@ class ApplicationConstants:
 
     BIG_LOSS = 50
 
+
+    DEVICE = 'cpu'
+
 class Environments(Enum):
     DEV = "dev"
     PROD = "prod"
