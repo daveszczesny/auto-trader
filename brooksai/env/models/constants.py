@@ -1,5 +1,7 @@
 from enum import Enum
 
+import torch
+
 class TradeType(Enum):
     LONG = 1
     SHORT = -1
@@ -74,7 +76,7 @@ class ApplicationConstants:
     SIMPLE_MAX_TRADES = 1
     TRANSACTION_FEE = 2.54
     BIG_LOSS = 50
-    DEVICE = 'cpu'
+    DEVICE = 'cpu' if torch.cuda.is_available() else 'cuda'
 
 class Environments(Enum):
     DEV = "dev"

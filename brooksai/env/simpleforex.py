@@ -1,4 +1,4 @@
-from typing import Tuple, Optional, List
+from typing import Tuple, Optional, List, Dict, Any
 
 import dask.dataframe as dd
 
@@ -51,7 +51,6 @@ class SimpleForexEnv(gym.Env):
                  initial_balance: float = 1_000.0,
                  render_mode: Optional[str] = None):
 
-        #TODO Move to GPU
         self.data = dd.read_csv(data)
         self.data = self.data.select_dtypes(include=[float, int])
         self.data = self.data.to_dask_array(lengths=True)
@@ -205,7 +204,7 @@ class SimpleForexEnv(gym.Env):
 
     def reset(self,
               seed: Optional[int] = None,
-              options: Optional[dict] = None) -> Tuple[np.ndarray, dict]:
+              options: Optional[dict] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
         """
         Reset the state of the environment to the inital state
         :param seed: int
@@ -249,7 +248,6 @@ class SimpleForexEnv(gym.Env):
         }
 
         logger.create_new_log_file()
-
         return self._get_observation(), {}
 
     def construct_action(self, raw_action: torch.Tensor) -> Action:
@@ -352,6 +350,9 @@ class SimpleForexEnv(gym.Env):
 
         if is_trade_open:
             if action.action_type is ActionType.CLOSE:
+                
+                self.reward += Reward.TRADE_CLOSED
+
                 ttl = open_trades[0].ttl
                 if ttl >= ApplicationConstants.DEFAULT_TRADE_TTL - 5:
                     # Reward agent for closing a profitable scalp
