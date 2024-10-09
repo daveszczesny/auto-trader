@@ -76,7 +76,7 @@ class ApplicationConstants:
     SIMPLE_MAX_TRADES = 1
     TRANSACTION_FEE = 2.54
     BIG_LOSS = 50
-    DEVICE = 'cpu' if torch.cuda.is_available() else 'cuda'
+    DEVICE = 'cpu'
 
 class Environments(Enum):
     DEV = "dev"

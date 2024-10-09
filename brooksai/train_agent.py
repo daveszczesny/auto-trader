@@ -4,6 +4,7 @@ from stable_baselines3 import PPO
 
 # pylint: disable=import-error
 from agent.ppo_agent import PPOAgent
+from agent.recurrentppoagent import RecurrentPPOAgent
 # pylint: disable=import-error, disable=unused-import
 from brooksai.scripts import register_env
 
@@ -31,12 +32,7 @@ print("Environment created")
 #     print("Agent created")
 
 
-model = PPOAgent(env, 
-                 state_dim=env.observation_space.shape[0], 
-                 action_dim=env.action_space.shape[0], 
-                 hidden_dim=256, 
-                 num_heads=8, 
-                 num_layers=3)
+model = RecurrentPPOAgent(env)
 
 # Train the agent
 for _ in range(1):

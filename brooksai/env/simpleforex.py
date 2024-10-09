@@ -179,13 +179,15 @@ class SimpleForexEnv(gym.Env):
                 if self.action_tracker['trades_closed'] > 0 else 0
             logger.log_test(f'Win rate: {win_rate}')
 
-        logger.log_test(f"{self.current_step}, {action.action_type.value}, {len(open_trades)}, "
-                        f"{action.data.lot_size if action.data is not None else 0}, "
-                        f"{self.current_price}, "
-                        f"{self.current_low}, "
-                        f"{self.current_high}, "
-                        f"{self.current_balance}, "
-                        f"{self.unrealised_pnl}, "
+        logger.log_test(f"{self.current_step}, "
+                        f"{action.action_type.value}, "
+                        f"{len(open_trades)}, "
+                        f"{round(action.data.lot_size, 2) if action.data is not None else 0}, "
+                        f"{round(self.current_price, 5)}, "
+                        f"{round(self.current_low, 5)}, "
+                        f"{round(self.current_high, 5)}, "
+                        f"{round(self.current_balance, 2)}, "
+                        f"{round(self.unrealised_pnl, 2)}, "
                         f"{self.reward}"
         )
 
