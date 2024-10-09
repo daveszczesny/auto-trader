@@ -1,5 +1,7 @@
 from enum import Enum
 
+import torch
+
 class TradeType(Enum):
     LONG = 1
     SHORT = -1
