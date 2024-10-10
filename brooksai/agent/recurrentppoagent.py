@@ -1,6 +1,5 @@
 
 import gymnasium as gym
-import numpy as np
 from sb3_contrib import RecurrentPPO
 
 class RecurrentPPOAgent:

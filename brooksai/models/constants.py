@@ -1,7 +1,5 @@
 from enum import Enum
 
-import torch
-
 class TradeType(Enum):
     LONG = 1
     SHORT = -1
@@ -11,7 +9,6 @@ class ActionType(Enum):
     LONG = 1
     SHORT = 2
     CLOSE = 3
-
 
 class Fee:
     TRANSACTION_FEE = 2.54
@@ -54,6 +51,8 @@ class Reward:
 
     AGENT_IMPROVED = 10
     BETTER_AVERAGE_TRADE = 3
+
+    CLOSE_TRADE = 1
 
 
 action_type_mapping = {
