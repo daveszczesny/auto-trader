@@ -64,6 +64,7 @@ action_type_mapping = {
 
 
 class ApplicationConstants:
+    INITIAL_BALANCE = 1_000
     DEFAULT_TRADE_TTL = 2_880 # 2 days
     DEFAULT_TRADE_WINDOW = 1440 # 1 day
     TRADE_TTL_OVERDRAFT_LIMIT = 7720 # 5 days

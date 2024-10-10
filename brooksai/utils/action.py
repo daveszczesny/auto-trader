@@ -12,10 +12,7 @@ class ActionBuilder:
         :param raw_action: Raw action values
         :return: Action object
         """
-        print('\n\n')
-        print(f'this is the action {raw_action}')
         action_type = ActionBuilder._get_action_type(raw_action)
-        print(f'this is action type {action_type}')
 
         if ActionBuilder._is_invalid_acition(action_type, raw_action):
             return ActionModel(action_type=ActionType.DO_NOTHING)
@@ -51,6 +48,9 @@ class ActionBuilder:
         """
         invalid_long_or_short = action_type in [ActionType.LONG, ActionType.SHORT] and\
             raw_action[1].item() <= 0
+        invalid_long_or_short_2 = action_type in [ActionType.LONG, ActionType.SHORT] and\
+            len(open_trades) > 0
+        invalid_long_or_short = invalid_long_or_short or invalid_long_or_short_2
         invalid_close = action_type is ActionType.CLOSE and len(open_trades) <= 0
 
         return invalid_long_or_short or invalid_close
@@ -93,6 +93,9 @@ class ActionApply:
     def apply_action(action: ActionModel, **kwargs):
 
         current_price = kwargs.get('current_price', None)
+        if current_price is None:
+            print("Current price is None")
+            return 0.0
 
         if action.action_type in [ActionType.LONG, ActionType.SHORT]:
             Trade(
@@ -103,7 +106,7 @@ class ActionApply:
             ActionApply.action_tracker['trades_opened'] += 1
         else:
             if not action.trade:
-                return
+                return 0.0
 
             ActionApply.action_tracker['trades_closed'] += 1
             value = get_trade_profit(action.trade, current_price) - Fee.TRANSACTION_FEE
@@ -113,8 +116,9 @@ class ActionApply:
             else:
                 ActionApply.action_tracker['total_lost'] += value
                 ActionApply.action_tracker['times_lost'] += 1
-            
+
             return close_trade(action.trade, current_price)
+        return 0.0
 
     @staticmethod
     def get_action_tracker(key: str):

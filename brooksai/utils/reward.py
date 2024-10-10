@@ -134,10 +134,13 @@ class RewardFunction:
                 RewardFunction.agent_improvement_metric['steps'][:-1].mean()
         ).float().item()
 
-        best_step = (
-            RewardFunction.agent_improvement_metric['steps'][-1] > \
-                RewardFunction.agent_improvement_metric['steps'][:-1].max()
-        ).float().item()
+        if RewardFunction.agent_improvement_metric['steps'][:-1].numel() > 0:
+            best_step = (
+                RewardFunction.agent_improvement_metric['steps'][-1] > \
+                    RewardFunction.agent_improvement_metric['steps'][:-1].max()
+            ).float().item()
+        else:
+            best_step = 0
 
         reward += Reward.AGENT_IMPROVED * win_lose_ratio_improved
         reward -= Punishment.AGENT_NOT_IMPROVING * (1 - win_lose_ratio_improved)
@@ -145,7 +148,7 @@ class RewardFunction:
         reward -= Punishment.NO_TRADE_OPEN * (RewardFunction.agent_improvement_metric['win_rate'][-1] == 0).float().item()
 
         reward += Reward.AGENT_IMPROVED * win_rate_improved
-        reawrd -= Punishment.AGENT_NOT_IMPROVING * (1 - win_rate_improved)
+        reward -= Punishment.AGENT_NOT_IMPROVING * (1 - win_rate_improved)
 
         reward += Reward.AGENT_IMPROVED * average_win_improved
         reward -= Punishment.AGENT_NOT_IMPROVING * (1 - average_win_improved)

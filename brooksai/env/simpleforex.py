@@ -49,7 +49,7 @@ class SimpleForexEnv(gym.Env):
 
     def __init__(self,
                  data: str,
-                 initial_balance: float = 1_000.0,
+                 initial_balance: float = ApplicationConstants.INITIAL_BALANCE,
                  render_mode: Optional[str] = None):
 
         self.data = dd.read_csv(data)
@@ -128,7 +128,7 @@ class SimpleForexEnv(gym.Env):
         )
 
         self.previous_balance = self.current_balance
-        ActionApply.apply_action(action, current_price=self.current_price)
+        self.current_balance += ActionApply.apply_action(action, current_price=self.current_price)
 
         self.unrealised_pnl = float(self._get_unrealized_pnl())
 
