@@ -11,7 +11,7 @@ def main():
 
     model = RecurrentPPOAgent(env)
 
-    model.learn(total_timesteps=20_000)
+    model.learn(total_timesteps=50_000)
     model.save('ppo_forex')
 
 

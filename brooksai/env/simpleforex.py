@@ -75,7 +75,7 @@ class SimpleForexEnv(gym.Env):
         # Action space
         # action taken, lot size, stop loss, take profit
         self.action_space = spaces.Box(
-            low = np.array([0.0, 0.01, -1.0, -1.0], dtype=np.float32),
+            low = np.array([0.0, 0, 0, 0], dtype=np.float32),
             high = np.array([1.0, 1.0, 1.0, 1.0],
                             dtype=np.float32),
             dtype=np.float32
@@ -96,7 +96,6 @@ class SimpleForexEnv(gym.Env):
         self.initial_balance: float = initial_balance
         self.current_balance: float = initial_balance
         self.unrealised_pnl: float = 0.0
-        self.previous_balance: float = 0.0
 
     def _update_current_state(self):
         if torch.cuda.is_available() and not self.data.is_cuda:
@@ -112,14 +111,12 @@ class SimpleForexEnv(gym.Env):
         )
 
     def step(self, action: np.ndarray) -> Tuple[torch.Tensor, float, bool, bool, dict]:
-
+        # Construct the action from agent input
         action: Action = ActionBuilder.construct_action(action)
-
-        self.reward: float = 0.0
-
-        self._update_current_state()
-
         trigger_stop_or_take_profit(self.current_high, self.current_low)
+        self.current_balance += ActionApply.apply_action(action,
+                                                         current_price=self.current_price)
+
         self.reward = RewardFunction.calculate_reward(
             action,
             self.current_price,
@@ -127,19 +124,19 @@ class SimpleForexEnv(gym.Env):
             self.trade_window
         )
 
-        self.previous_balance = self.current_balance
-        self.current_balance += ActionApply.apply_action(action, current_price=self.current_price)
-
         self.unrealised_pnl = float(self._get_unrealized_pnl())
+
+        self._update_current_state()
 
         # Reset when
         # 1. Run is done
         # 2. Losses over 1/4 of original balance
         # 3. Trade window is over
-        self.done = self.current_step >= self.n_steps - 1 or \
-            self.initial_balance * 0.75 >= self.current_balance - \
-                abs(self.unrealised_pnl if self.unrealised_pnl < 0 else 0) or \
-            self.trade_window <= 0
+        self.done = bool(
+            self.initial_balance * 0.75 >= self.current_balance -
+            abs(self.unrealised_pnl if self.unrealised_pnl < 0 else 0)
+            or self.trade_window <= 0
+        )
 
         if self.done:
             self.current_balance += close_all_trades(self.current_price)
@@ -174,6 +171,7 @@ class SimpleForexEnv(gym.Env):
                 if ActionApply.get_action_tracker('trades_closed') > 0 else 0
             logger.log_test(f'Win rate: {win_rate}')
 
+        # Log the step
         logger.log_test(f"{self.current_step}, "
                         f"{action.action_type.value}, "
                         f"{len(open_trades)}, "
@@ -186,12 +184,6 @@ class SimpleForexEnv(gym.Env):
                         f"{self.reward}"
         )
 
-        logger.log_debug(f"Step: {self.current_step}, Action: {action.action_type}, "
-                        f"Balance: {self.current_balance}, "
-                        f"Unrealised PnL: {self.unrealised_pnl}, "
-                        f"Reward: {self.reward}, "
-                        f"Trades Open: {len(open_trades)}")
-
         self.current_step += 1
 
         return self._get_observation(), self.reward, self.done, False, {}
@@ -200,6 +192,7 @@ class SimpleForexEnv(gym.Env):
         pass
 
     def reset(self,
+              *,
               seed: Optional[int] = None,
               options: Optional[dict] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
         """

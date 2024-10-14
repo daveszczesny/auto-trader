@@ -24,58 +24,53 @@ class RewardFunction:
 
         is_trade_open = len(trade.open_trades) > 0
         trade_profit = trade.get_trade_profit(trade.open_trades[0], current_price) if is_trade_open else 0
+        ttl = trade.open_trades[0].ttl if is_trade_open else 0
 
         invalid_trade = is_trade_open and action.action_type in [ActionType.LONG, ActionType.SHORT]
         invalid_close = not is_trade_open and action.action_type == ActionType.CLOSE
 
-        # Check invalid actions
+
         if invalid_trade or invalid_close:
             reward -= Punishment.INVALID_ACTION
+            return reward
+        
 
-        #  Agent is in a trade
-        if is_trade_open:
-            # if the agent tries to close the trade
-            if action.action_type == ActionType.CLOSE:
-                # Reward for closing a trade
-                reward += Reward.CLOSE_TRADE
+        if is_trade_open and \
+            (trade_profit < -RewardFunction.significant_loss_threshold or trade_profit > RewardFunction.significant_gain_threshold):
+            reward -= Punishment.SIGNIFICANT_LOSS
+            reward -= Punishment.RISKY_HOLDING
+            return reward
 
-                # check trade ttl
-                ttl = trade.open_trades[0].ttl
-                if ttl >= ApplicationConstants.DEFAULT_TRADE_TTL - 5:
-                    # Reward agent for closing a profitable scalp
-                    if trade_profit > Fee.TRANSACTION_FEE:
-                        reward += Reward.TRADE_CLOSED_IN_PROFIT
-                    # If scalp is not profitable, punish agent for closing too early
-                    else:
-                        reward -= Punishment.CLOSING_TOO_QUICK
-                if 0 < ttl <= ApplicationConstants.DEFAULT_TRADE_TTL - 5:
-                    reward += Reward.TRADE_CLOSED_WITHIN_TTL
-
-                    if trade_profit > Fee.TRANSACTION_FEE:
-                        reward += Reward.TRADE_CLOSED_IN_PROFIT
-
-                if ttl < 0:
-                    reward -= Punishment.HOLDING_TRADE_TOO_LONG
-
-                if ttl < -ApplicationConstants.TRADE_TTL_OVERDRAFT_LIMIT:
-                    reward -= Punishment.TRADE_HELD_TOO_LONG * 5
-
-            # Punish the agent for holding onto a lossing trade for too long (1 hours)
-            if trade_profit < -(current_balance * 0.02) and \
-                trade.open_trades[0].ttl <= ApplicationConstants.DEFAULT_TRADE_TTL - 60:
-                reward -= Punishment.HOLDING_LOSSING_TRADE
-            # Punish the agent for holding a trade with a big loss
-            if trade_profit < -RewardFunction.significant_loss_threshold:
-                reward -= Punishment.HOLDING_LOSSING_TRADE
-            # Reward for doing nothing
-            elif action.action_type == ActionType.DO_NOTHING:
-                reward += Reward.SMALL_REWARD_FOR_DOING_NOTHING
-            # Punish the agent for holding a trade with a big profit
-            if trade_profit > RewardFunction.significant_gain_threshold:
-                reward -= Punishment.RISKY_HOLDING
-
+        if action.action_type == ActionType.DO_NOTHING:
+            reward += Reward.DO_NOTHING
+            return reward
+        
         if trade_window <= 0:
-            reward -= Punishment.NO_TRADE_OPEN
+            reward -= Punishment.NO_TRADE_WITHIN_WINDOW
+            return reward
+
+        if action.action_type == ActionType.CLOSE:
+            reward += Reward.CLOSE_TRADE
+
+            if trade_profit > Fee.TRANSACTION_FEE:
+                reward += Reward.TRADE_CLOSED_IN_PROFIT
+
+            if 0 < ttl < ApplicationConstants.DEFAULT_TRADE_TTL - 5:
+                reward += Reward.TRADE_CLOSED_WITHIN_TTL
+
+            if ApplicationConstants.DEFAULT_TRADE_TTL - 10 < ttl < ApplicationConstants.DEFAULT_TRADE_TTL:
+                if trade_profit < Fee.TRANSACTION_FEE:
+                    reward -= Punishment.TRADE_CLOSED_IN_LOSS
+                    reward -= Punishment.CLOSING_TOO_QUICK
+
+                    return reward
+
+            if trade_profit < Fee.TRANSACTION_FEE:
+                reward -= Punishment.TRADE_CLOSED_IN_LOSS
+                return reward
+
+        if action.action_type in [ActionType.LONG, ActionType.SHORT]:
+            reward += Reward.TRADE_OPENED
 
         return reward
 
@@ -157,6 +152,6 @@ class RewardFunction:
         reward -= Punishment.AGENT_NOT_IMPROVING * (1 - better_average_steps)
 
         # Give a big reward for the best step
-        reward += Reward.AGENT_IMPROVED * (best_step * 3 if best_step > 0 else 0)
+        reward += Reward.AGENT_IMPROVED * best_step * 1000
 
         return reward

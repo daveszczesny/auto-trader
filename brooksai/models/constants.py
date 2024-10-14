@@ -19,7 +19,7 @@ class Punishment:
     NO_TAKE_PROFIT = 2
 
     MARGIN_CALLED = 7
-    NO_TRADE_WITHIN_WINDOW = 3
+    NO_TRADE_WITHIN_WINDOW = 5
     INSUFFICIENT_MARGIN = 5
     INSUFFICIENT_FUNDS = 5
     MAX_TRADES_REACHED = 2
@@ -53,7 +53,7 @@ class Reward:
     BETTER_AVERAGE_TRADE = 3
 
     CLOSE_TRADE = 1
-
+    DO_NOTHING = 0.5
 
 action_type_mapping = {
     0: ActionType.DO_NOTHING,

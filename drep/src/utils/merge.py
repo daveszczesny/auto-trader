@@ -3,7 +3,6 @@ import os
 from typing import Optional
 from datetime import datetime, timedelta
 
-from drep.src.servies.logger import logger
 
 PATH_RESOURCES = '../environments/resources/'
 
@@ -24,9 +23,9 @@ def merge_csv_files(from_directory: str,
         os.remove(PATH_RESOURCES + destination_file)
 
     # create file
-    open(PATH_RESOURCES + destination_file, 'w').close()
+    open('training_data_5min.csv', 'w').close()
 
-    logger.log_info("Merging csv files...")
+    print("Merging csv files...")
 
     total_files_to_merge: int = len(os.listdir(from_directory))
     files_merged: int = 0
@@ -64,12 +63,15 @@ def merge_csv_files(from_directory: str,
                     if ',,,' not in line:
                         lines_to_write.append(line)
 
-            with open(PATH_RESOURCES + destination_file, 'a') as file:
+            with open('training_data_5min.csv', 'a') as file:
                 for line in lines_to_write:
                     file.write(line)
                 files_merged += 1
-
-            logger.log_state(f"Merged {files_merged} files out of {total_files_to_merge}, "
+            
+            print(f"Merged {files_merged} files out of {total_files_to_merge}, "
                              f"Skipped: {files_skipped} files")
         current_dt += timedelta(days=1)
     print('\n')
+
+
+merge_csv_files('res', 'training_data_5min.csv', '2008-01-01', '2022-01-01')

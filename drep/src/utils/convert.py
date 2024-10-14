@@ -5,55 +5,10 @@ from datetime import datetime
 
 import pandas as pd
 
-from drep.src.servies.logger import logger
-from drep.src.utils.constants import FAILED_CONVERSIONS_FILE
+# from drep.src.servies.logger import logger
+# from drep.src.utils.constants import FAILED_CONVERSIONS_FILE
+FAILED_CONVERSIONS_FILE = 'failed_conversions.txt'
 
-def bi5_to_csv(from_directory: str, directory: str, aggregation: str = '1min'):
-
-    if not directory:
-        raise ValueError("Directory not provided")
-
-    files_to_convert: list | None = os.listdir(from_directory)
-
-    if not files_to_convert:
-        logger.log_error("No files to convert found in data directory")
-        return
-
-    # Clear the failed conversions file
-    open(FAILED_CONVERSIONS_FILE, 'w').close()
-
-    if not os.path.exists(directory):
-        os.makedirs(directory)
-
-    files_converted: int = 0
-
-    start_time = datetime.now()
-    for file in files_to_convert:
-        if not file.endswith('.bi5'):
-            continue
-
-        try:
-            _bi5_to_csv(from_directory, directory, file, aggregation=aggregation)
-            files_converted += 1
-            logger.log_state(f"Converted {files_converted} files out of {len(files_to_convert)}")
-        except Exception as _:  # pylint: disable=broad-except
-            pass
-
-    time_taken = datetime.now() - start_time
-    logger.log_info(f"Time taken to convert {files_converted} files:"\
-                    f"{(int) (time_taken.total_seconds())} seconds")
-
-    failed_conversions = open(FAILED_CONVERSIONS_FILE).read().split('\n')
-    if failed_conversions:
-        logger.log_error(f"Failed to convert {len(failed_conversions)}"\
-                         "files. Retrying failed conversions")
-        for filename in failed_conversions:
-            if not filename:
-                continue
-            try:
-                _bi5_to_csv(from_directory, directory, filename, aggregation=aggregation)
-            except Exception as _: # pylint: disable=broad-except
-                logger.log_error(f"Failed to convert {filename} again.")
 
 
 # pylint: disable=too-many-locals
@@ -121,7 +76,7 @@ def _bi5_to_csv(from_directory: str, directory: str, filename: str, aggregation:
 
     except Exception as e: # pylint: disable=broad-except
         # pylint: disable=unexpected-keyword-arg
-        logger.log_exception(f"Failed to convert {filename}", exec_info=e)
+        # logger.log_exception(f"Failed to convert {filename}", exec_info=e)
         _update_failed_conversions(filename)
 
 
@@ -130,3 +85,58 @@ def _update_failed_conversions(filename: str):
     Update failed conversions
     """
     open(FAILED_CONVERSIONS_FILE, 'a').write(filename + '\n')
+
+
+def bi5_to_csv(from_directory: str, directory: str, aggregation: str = '1min'):
+    print('running bi5_to_csv')
+    if not directory:
+        print('hello?')
+        raise ValueError("Directory not provided")
+
+    files_to_convert: list | None = os.listdir(from_directory)
+
+    if not files_to_convert:
+        print('No files to convert found in data directory')
+        # logger.log_error("No files to convert found in data directory")
+        return
+
+    # Clear the failed conversions file
+    open(FAILED_CONVERSIONS_FILE, 'w').close()
+
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
+    files_converted: int = 0
+
+    start_time = datetime.now()
+    for file in files_to_convert:
+        if not file.endswith('.bi5'):
+            continue
+
+        try:
+            _bi5_to_csv(from_directory, directory, file, aggregation=aggregation)
+            files_converted += 1
+            print(f'Converted {files_converted} files out of {len(files_to_convert)}')
+            # logger.log_state(f"Converted {files_converted} files out of {len(files_to_convert)}")
+        except Exception as e:  # pylint: disable=broad-except
+            print(f'{repr(e)}')
+
+    time_taken = datetime.now() - start_time
+    # logger.log_info(f"Time taken to convert {files_converted} files:"\
+    #                 f"{(int) (time_taken.total_seconds())} seconds")
+
+    failed_conversions = open(FAILED_CONVERSIONS_FILE).read().split('\n')
+    if failed_conversions:
+        # logger.log_error(f"Failed to convert {len(failed_conversions)}"\
+        #                  "files. Retrying failed conversions")
+        for filename in failed_conversions:
+            if not filename:
+                continue
+            try:
+                _bi5_to_csv(from_directory, directory, filename, aggregation=aggregation)
+            except Exception as _: # pylint: disable=broad-except
+                # logger.log_error(f"Failed to convert {filename} again.")
+                pass
+
+print('running converter')
+bi5_to_csv('data', 'res', aggregation='5min')
