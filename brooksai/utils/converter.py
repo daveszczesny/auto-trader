@@ -1,4 +1,4 @@
-from brooksai.env.models.constants import ApplicationConstants
+from brooksai.models.constants import ApplicationConstants
 
 def pip_to_profit(pip_delta: float, lot_size: float) -> float:
     """

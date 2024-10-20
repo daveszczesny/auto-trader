@@ -2,9 +2,8 @@ from uuid import uuid1
 from typing import Optional, Union, List, Dict
 
 from currency_converter import CurrencyConverter
-
-from brooksai.env.models.constants import TradeType, ApplicationConstants
-from brooksai.env.utils.converter import pip_to_profit, pips_to_price_chart
+from brooksai.models.constants import ApplicationConstants, TradeType
+from brooksai.utils import converter
 
 c = CurrencyConverter()
 eur_to_gbp = c.convert(1, 'EUR', 'GBP')
@@ -111,7 +110,7 @@ def get_trade_profit(trade: Trade, current_price: float) -> float:
     else:
         trade_profit_in_pips = trade.open_price - current_price
 
-    return pip_to_profit(trade_profit_in_pips, trade.lot_size) * c.convert(1, 'USD', 'GBP')
+    return converter.pip_to_profit(trade_profit_in_pips, trade.lot_size) * c.convert(1, 'USD', 'GBP')
 
 def get_trade_state(uuid: str, current_price: float) -> Dict[str, Union[str, float]]:
     trade = get_trade_by_id(uuid)
@@ -142,9 +141,9 @@ def trigger_stop_or_take_profit(current_high: float, current_low: float) -> floa
     for trade in open_trades:
         if trade.trade_type is TradeType.LONG:
             tp_chart_price = trade.open_price +\
-                pips_to_price_chart(trade.take_profit) if trade.take_profit else None
+                converter.pips_to_price_chart(trade.take_profit) if trade.take_profit else None
             sl_chart_price = trade.open_price -\
-                pips_to_price_chart(trade.stop_loss) if trade.stop_loss else None
+                converter.pips_to_price_chart(trade.stop_loss) if trade.stop_loss else None
 
             if tp_chart_price and current_high >= tp_chart_price:
                 total_value += close_trade(trade, tp_chart_price)
@@ -153,9 +152,9 @@ def trigger_stop_or_take_profit(current_high: float, current_low: float) -> floa
 
         elif trade.trade_type is TradeType.SHORT:
             tp_chart_price = trade.open_price -\
-                pips_to_price_chart(trade.take_profit) if trade.take_profit else None
+                converter.pips_to_price_chart(trade.take_profit) if trade.take_profit else None
             sl_chart_price = trade.open_price +\
-                pips_to_price_chart(trade.stop_loss) if trade.stop_loss else None
+                converter.pips_to_price_chart(trade.stop_loss) if trade.stop_loss else None
 
             if tp_chart_price and current_low <= tp_chart_price:
                 total_value += close_trade(trade, tp_chart_price)

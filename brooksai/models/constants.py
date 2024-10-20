@@ -1,7 +1,5 @@
 from enum import Enum
 
-import torch
-
 class TradeType(Enum):
     LONG = 1
     SHORT = -1
@@ -12,7 +10,6 @@ class ActionType(Enum):
     SHORT = 2
     CLOSE = 3
 
-
 class Fee:
     TRANSACTION_FEE = 2.54
     EXTRA_DAY_FEE = 2
@@ -22,39 +19,41 @@ class Punishment:
     NO_TAKE_PROFIT = 2
 
     MARGIN_CALLED = 7
-    NO_TRADE_WITHIN_WINDOW = 3
+    NO_TRADE_WITHIN_WINDOW = 0.5
     INSUFFICIENT_MARGIN = 5
     INSUFFICIENT_FUNDS = 5
     MAX_TRADES_REACHED = 2
     NO_TRADE_OPEN = 5
-    TRADE_CLOSED_IN_LOSS = 4.5
+    TRADE_CLOSED_IN_LOSS = 0.5
     MISSED_PROFIT = 2
     UNREALIZED_LOSS = 1
-    SIGNIFICANT_LOSS = 2
+    SIGNIFICANT_LOSS = 0.2
 
-    INVALID_ACTION = 5
+    INVALID_ACTION = 0.5
     HOLDING_TRADE_TOO_LONG = 2
-    CLOSING_TOO_QUICK = 1.5
+    CLOSING_TOO_QUICK = 0.1
     HOLDING_LOSSING_TRADE = 2
-    AGENT_NOT_IMPROVING = 5
-    RISKY_HOLDING = 3
+    AGENT_NOT_IMPROVING = 1
+    RISKY_HOLDING = 0.1
 
     TRADE_HELD_TOO_LONG = 20
 
 class Reward:
     TRADE_CLOSED = 1.5
-    TRADE_CLOSED_IN_PROFIT = 10
-    TRADE_OPENED = 0.5
+    TRADE_CLOSED_IN_PROFIT = 0.5
+    TRADE_OPENED = 0.1
     COMPLETED_RUN = 4
     UNREALIZED_PROFIT = 2
 
-    TRADE_CLOSED_WITHIN_TTL = 2
+    TRADE_CLOSED_WITHIN_TTL = 0.1
     SMALL_REWARD_FOR_DOING_NOTHING = 0.1
     BETTER_AVERAGE_TRADE = 0.1
 
-    AGENT_IMPROVED = 10
+    AGENT_IMPROVED = 1
     BETTER_AVERAGE_TRADE = 3
 
+    CLOSE_TRADE = 0.2
+    DO_NOTHING = 0.01
 
 action_type_mapping = {
     0: ActionType.DO_NOTHING,
@@ -65,6 +64,7 @@ action_type_mapping = {
 
 
 class ApplicationConstants:
+    INITIAL_BALANCE = 1_000
     DEFAULT_TRADE_TTL = 2_880 # 2 days
     DEFAULT_TRADE_WINDOW = 1440 # 1 day
     TRADE_TTL_OVERDRAFT_LIMIT = 7720 # 5 days
