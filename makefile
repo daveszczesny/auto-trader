@@ -23,6 +23,8 @@ lint:
 test-unit:
 	PYTHONPATH=${shell pwd} venv/bin/pytest brooksai/tests/unit
 
+run-tradevis:
+	PYTHONPATH=${shell pwd} venv/bin/python tradevis/main.py
 
 # Windows Commands
 

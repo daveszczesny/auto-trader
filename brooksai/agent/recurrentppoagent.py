@@ -1,4 +1,6 @@
 
+import torch
+
 import gymnasium as gym
 from sb3_contrib import RecurrentPPO
 
@@ -18,10 +20,10 @@ class RecurrentPPOAgent:
             gae_lambda=0.95,
             ent_coef=0.01,
             vf_coef=0.5,
-            max_grad_norm=0.5,
+            max_grad_norm=0.5, # gradient clipping
             use_sde=True,
             sde_sample_freq=4,
-            policy_kwargs=dict(lstm_hidden_size=385, n_lstm_layers=2)
+            policy_kwargs=dict(lstm_hidden_size=256, n_lstm_layers=2)
             )
         self.num_envs = 1
 
