@@ -16,13 +16,13 @@ class RecurrentPPOAgent:
             n_epochs=10,
             gamma=0.99,
             learning_rate=3e-4,
-            clip_range=0.2,
+            clip_range=0.3,
             gae_lambda=0.95,
-            ent_coef=0.01,
+            ent_coef=0.02,
             vf_coef=0.5,
             max_grad_norm=0.5, # gradient clipping
             use_sde=True,
-            sde_sample_freq=4,
+            sde_sample_freq=16,
             policy_kwargs=dict(lstm_hidden_size=256, n_lstm_layers=2)
             )
         self.num_envs = 1

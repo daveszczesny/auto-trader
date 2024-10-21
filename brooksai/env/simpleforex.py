@@ -114,8 +114,12 @@ class SimpleForexEnv(gym.Env):
         # Construct the action from agent input
         action: Action = ActionBuilder.construct_action(action)
         trigger_stop_or_take_profit(self.current_high, self.current_low)
-        self.current_balance += ActionApply.apply_action(action,
-                                                         current_price=self.current_price)
+        value, tw = ActionApply.apply_action(action,
+                                             current_price=self.current_price,
+                                             trade_window=self.trade_window)
+
+        self.current_balance += value
+        self.trade_window = tw
 
         self.reward = RewardFunction.calculate_reward(
             action,
@@ -144,7 +148,7 @@ class SimpleForexEnv(gym.Env):
 
             # Big penality for going over trade window
             if self.trade_window <= 0:
-                self.reward -= 1440
+                self.reward -= 2
 
             average_win = float(
                 ActionApply.get_action_tracker('total_won')) / float(ActionApply.get_action_tracker('trades_closed')
