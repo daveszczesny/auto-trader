@@ -5,7 +5,7 @@ import pygame
 class Panel:
 
     surface: pygame.Surface = None
-    components: List[Any] = None
+    
 
 
     def __init__(self, 
@@ -13,6 +13,7 @@ class Panel:
                  height: int,
                  color: Tuple[int, int, int] = (0, 0, 0)):
 
+        self.components: List[Any] = []
         self.width = width
         self.height = height
         self.surface = pygame.Surface((width, height))
@@ -20,7 +21,7 @@ class Panel:
         self.color = color
 
     def add_component(self, component: Any):
-        if self.components is None:
+        if not self.components:
             self.components = []
 
         self.components.append(component)
@@ -33,7 +34,7 @@ class Panel:
         for component in self.components:
             component.update(event)
 
-    def draw(self, screen: pygame.Surface, x: int, y: int):
+    def draw(self, screen: pygame.Surface, x: int = 0, y: int = 0):
         self.surface.fill(self.color)
 
         for component in self.components:

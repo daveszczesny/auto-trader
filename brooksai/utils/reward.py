@@ -25,6 +25,7 @@ class RewardFunction:
 
     @staticmethod
     def do_nothing_curve(duration, max_reward = 0.01, min_punishment = -0.5, midpoint=60, steepness=1):
+        duration = torch.tensor(duration, dtype=torch.float32)
         return max_reward - (
             max_reward - min_punishment
         ) / (1 + torch.exp(-steepness + duration - midpoint))
