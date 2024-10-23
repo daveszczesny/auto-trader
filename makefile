@@ -8,7 +8,7 @@ setup-venv:
 	venv/bin/pip install git+https://github.com/DLR-RM/stable-baselines3
 	venv/bin/pip install pylint
 	venv/bin/pip install pytest
-	venv/bin/pip install torch
+	venv/bin/pip install torch torchvision tensorboard
 
 clean-venv:
 	rm -rf venv

@@ -16,11 +16,11 @@ class ActionBuilder:
 
         if ActionBuilder._is_invalid_acition(action_type, raw_action):
             return ActionModel(action_type=ActionType.DO_NOTHING)
-        
+
         if action_type in [ActionType.LONG, ActionType.SHORT]:
             trade_action = ActionBuilder._create_trade_action(raw_action)
             return ActionModel(action_type=action_type, trade_data=trade_action)
-        
+
         if action_type is ActionType.CLOSE:
             # This assumes that there is only one open trade at a time
             return ActionModel(action_type=action_type, trade=open_trades[0])
@@ -98,7 +98,7 @@ class ActionApply:
         if trade_window is None:
             print("Trade window is None")
             trade_window = ApplicationConstants.DEFAULT_TRADE_WINDOW
-        
+
         if current_price is None:
             print("Current price is None")
             return 0.0, trade_window

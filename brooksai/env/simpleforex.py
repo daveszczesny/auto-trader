@@ -97,6 +97,7 @@ class SimpleForexEnv(gym.Env):
         self.current_balance: float = initial_balance
         self.unrealised_pnl: float = 0.0
 
+
     def _update_current_state(self):
         if torch.cuda.is_available() and not self.data.is_cuda:
             self.data = self.data.cuda()
@@ -123,57 +124,14 @@ class SimpleForexEnv(gym.Env):
 
         self.reward = RewardFunction.calculate_reward(
             action,
-            self.current_price,
-            self.current_balance,
-            self.trade_window
+            self.current_price
         )
 
         self.unrealised_pnl = float(self._get_unrealized_pnl())
 
         self._update_current_state()
 
-        # Reset when
-        # 1. Run is done
-        # 2. Losses over 1/4 of original balance
-        # 3. Trade window is over
-        self.done = bool(
-            self.initial_balance * 0.75 >= self.current_balance -
-            abs(self.unrealised_pnl if self.unrealised_pnl < 0 else 0)
-            or self.trade_window <= 0
-        )
-
-        if self.done:
-            self.current_balance += close_all_trades(self.current_price)
-            self.previous_unrealized_pnl.clear()
-
-            # Big penality for going over trade window
-            if self.trade_window <= 0:
-                self.reward -= 2
-
-            average_win = float(
-                ActionApply.get_action_tracker('total_won')) / float(ActionApply.get_action_tracker('trades_closed')
-                ) if ActionApply.get_action_tracker('trades_closed') > 0 else 0
-            average_loss = float(
-                ActionApply.get_action_tracker('total_lost')) / float(ActionApply.get_action_tracker('trades_closed')
-                ) if ActionApply.get_action_tracker('trades_closed') > 0 else 0
-
-            self.reward += RewardFunction.calculate_agent_improvement(
-                average_win,
-                average_loss,
-                ActionApply.get_action_tracker('times_won'),
-                ActionApply.get_action_tracker('trades_closed'),
-                self.current_step
-            )
-
-            # Log tracker
-            logger.log_test('\nAction Tracker')
-            logger.log_test(f'Trades opened: {ActionApply.get_action_tracker("trades_opened")}')
-            logger.log_test(f'Trades closed: {ActionApply.get_action_tracker("trades_closed")}')
-            logger.log_test(f'Average win: {average_win}')
-            logger.log_test(f'Average loss: {average_loss}')
-            win_rate = (ActionApply.get_action_tracker('times_won') / ActionApply.get_action_tracker('trades_closed')) \
-                if ActionApply.get_action_tracker('trades_closed') > 0 else 0
-            logger.log_test(f'Win rate: {win_rate}')
+        self._is_done()
 
         # Log the step
         logger.log_test(f"{self.current_step}, "
@@ -265,3 +223,44 @@ class SimpleForexEnv(gym.Env):
                 len(open_trades)
                 ], dtype=torch.float32, device=ApplicationConstants.DEVICE)
         return observation.cpu().numpy()
+
+
+    def _is_done(self):
+        self.done = bool(
+            self.initial_balance * 0.75 >= self.current_balance -
+            abs(self.unrealised_pnl if self.unrealised_pnl < 0 else 0)
+            or self.trade_window < 0
+        )
+
+        if self.done:
+            self.current_balance += close_all_trades(self.current_price)
+            self.previous_unrealized_pnl.clear()
+
+
+            if self.trade_window < 0:
+                self.reward -= 0.2
+
+            average_win = float(
+                ActionApply.get_action_tracker('total_won')) / float(ActionApply.get_action_tracker('trades_closed')
+                ) if ActionApply.get_action_tracker('trades_closed') > 0 else 0
+            average_loss = float(
+                ActionApply.get_action_tracker('total_lost')) / float(ActionApply.get_action_tracker('trades_closed')
+                ) if ActionApply.get_action_tracker('trades_closed') > 0 else 0
+
+            self.reward += RewardFunction.calculate_agent_improvement(
+                average_win,
+                average_loss,
+                ActionApply.get_action_tracker('times_won'),
+                ActionApply.get_action_tracker('trades_closed'),
+                self.current_step
+            )
+
+            # Log tracker
+            logger.log_test('\nAction Tracker')
+            logger.log_test(f'Trades opened: {ActionApply.get_action_tracker("trades_opened")}')
+            logger.log_test(f'Trades closed: {ActionApply.get_action_tracker("trades_closed")}')
+            logger.log_test(f'Average win: {average_win}')
+            logger.log_test(f'Average loss: {average_loss}')
+            win_rate = (ActionApply.get_action_tracker('times_won') / ActionApply.get_action_tracker('trades_closed')) \
+                if ActionApply.get_action_tracker('trades_closed') > 0 else 0
+            logger.log_test(f'Win rate: {win_rate}')
