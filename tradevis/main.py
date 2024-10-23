@@ -3,74 +3,85 @@ TradeVis
 
 TradVis is a tool for visualizing agent trade data. It is designed to be used with brooksai
 """
-
+import os
 import pygame
-import dask.dataframe as dd
-from shapes.shapes import Candlestick
+
+import pandas as pd
+import mplfinance as mpf
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
+
+from views.logpanel.log import LogPanel
+from views.logpanel.stage import Stage
 
 def main():
 
     pygame.init()
     pygame.font.init()
-    WIDTH, HEIGHT = 1400, 800
+    WIDTH, HEIGHT = 800, 800
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
     clock = pygame.time.Clock()
     running = True
     pygame.display.set_caption("TradeVis")
 
-    data = dd.read_csv("resources/training_data_5min.csv")
-    data = data.compute()
-
-    data = data[["bid_open", "bid_close", "bid_high", "bid_low"]]
-
-    candlesticks = []
-
-       # Initial y position
-    initial_y = 500
-
-    canvas = pygame.Surface((1000, 800))
-
-    # for i in range(len(data)):
-    #     if i == 0:
-    #         y_position = initial_y
-    #     else:
-    #         y_position += (data.iloc[i]["bid_open"] - data.iloc[i-1]["bid_close"]) * 100_000
-
-    #     candlestick = Candlestick(
-    #         x= 200 + (i * 20),
-    #         y=y_position,
-    #         open=data.iloc[i]["bid_open"],
-    #         close=data.iloc[i]["bid_close"],
-    #         high=data.iloc[i]["bid_high"],
-    #         low=data.iloc[i]["bid_low"]
-    #     )
-
-    #     candlesticks.append(candlestick)
-
-    candlestick = Candlestick(
-        x=20,
-        y=400,
-        open=1.8000,
-        close=1.8002,
-        high=1.8005,
-        low=1.7999
+    main_stage = Stage(
+        0,0, WIDTH, HEIGHT
     )
-
-
 
     while running:
         screen.fill((0, 0, 0))
-        canvas.fill((20, 20, 20))
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
 
-        candlestick.draw(canvas)
-        screen.blit(canvas, (0, 0))
+            main_stage.update(event)
+
+
+        main_stage.draw(screen)
 
         pygame.display.flip()
-        clock.tick(60)
+        clock.tick(120)
     pygame.quit()
+
+
+"""
+
+log file contain a structure
+
+logs/
+2024-01-01T00:00: {
+    run1: [log01.csv, log02.csv, etc... ]
+}
+
+given this structure we can iterate down the parent directories to get the log files
+
+"""
+
+
+
+
+def get_log_files():
+
+    log_path = 'logs/'
+
+    if not os.path.exists(log_path):
+        print('No logs found')
+        return
+    
+    log_files = os.listdir(log_path)
+
+    run_files = []
+    for log_file in log_files:
+        runs = os.listdir(log_path + log_file)
+
+        for run in runs:
+            run_files = os.listdir(log_path + log_file + '/' + run)
+
+
+    for file in run_files:
+        print(file)
+
+    return run_files
 
 
 if __name__ == "__main__":

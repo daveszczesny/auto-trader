@@ -1,6 +1,6 @@
 import torch
 from brooksai.models.action import Action as ActionModel, TradeAction
-from brooksai.models.constants import Fee, ActionType, TradeType, action_type_mapping
+from brooksai.models.constants import Fee, ActionType, TradeType, action_type_mapping, ApplicationConstants
 from brooksai.models.trade import open_trades, Trade, get_trade_profit, close_trade
 
 class ActionBuilder:
@@ -92,10 +92,16 @@ class ActionApply:
     @staticmethod
     def apply_action(action: ActionModel, **kwargs):
 
+        trade_window = kwargs.get('trade_window', None)
         current_price = kwargs.get('current_price', None)
+
+        if trade_window is None:
+            print("Trade window is None")
+            trade_window = ApplicationConstants.DEFAULT_TRADE_WINDOW
+        
         if current_price is None:
             print("Current price is None")
-            return 0.0
+            return 0.0, trade_window
 
         if action.action_type in [ActionType.LONG, ActionType.SHORT]:
             Trade(
@@ -104,9 +110,10 @@ class ActionApply:
                 trade_type=TradeType.LONG if action.action_type is ActionType.LONG else TradeType.SHORT
             )
             ActionApply.action_tracker['trades_opened'] += 1
-        else:
+            trade_window = ApplicationConstants.DEFAULT_TRADE_WINDOW
+        elif action.action_type is ActionType.CLOSE:
             if not action.trade:
-                return 0.0
+                return 0.0, trade_window
 
             ActionApply.action_tracker['trades_closed'] += 1
             value = get_trade_profit(action.trade, current_price) - Fee.TRANSACTION_FEE
@@ -117,8 +124,10 @@ class ActionApply:
                 ActionApply.action_tracker['total_lost'] += value
                 ActionApply.action_tracker['times_lost'] += 1
 
-            return close_trade(action.trade, current_price)
-        return 0.0
+            return close_trade(action.trade, current_price), trade_window
+        else:
+            trade_window -= 1
+        return 0.0, trade_window
 
     @staticmethod
     def get_action_tracker(key: str):

@@ -5,3 +5,4 @@ stable-baselines3
 numpy
 dask
 dask[dataframe]
+sb3-contrib

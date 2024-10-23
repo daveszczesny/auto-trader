@@ -20,8 +20,20 @@ class RewardFunction:
         'steps': torch.tensor([], dtype=torch.float32)
     }
 
+
+    previous_actions = []
+
+    @staticmethod
+    def do_nothing_curve(duration, max_reward = 0.01, min_punishment = -0.5, midpoint=60, steepness=1):
+        duration = torch.tensor(duration, dtype=torch.float32)
+        return max_reward - (
+            max_reward - min_punishment
+        ) / (1 + torch.exp(-steepness + duration - midpoint))
+
     @staticmethod
     def calculate_reward(action: Action, current_price, current_balance, trade_window):
+
+        RewardFunction.previous_actions.append(action.action_type)
 
         reward: float = 0.0
 
@@ -49,7 +61,9 @@ class RewardFunction:
 
         if action.action_type == ActionType.DO_NOTHING:
             # 0.01
-            reward += Reward.DO_NOTHING
+
+            duration_of_inactivity = RewardFunction.previous_actions.count(ActionType.DO_NOTHING)
+            reward += RewardFunction.do_nothing_curve(duration_of_inactivity)
             return RewardFunction.normalize_reward(reward)
         
         if trade_window <= 0:

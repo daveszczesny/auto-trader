@@ -27,8 +27,8 @@ class RecurrentPPOAgent:
             )
         self.num_envs = 1
 
-    def learn(self, total_timesteps: int = 4_000_000):
-        self.model.learn(total_timesteps, tb_log_name="ppo_recurrent")
+    def learn(self, total_timesteps: int = 4_000_000, callback=None):
+        self.model.learn(total_timesteps, tb_log_name="ppo_recurrent", callback=callback)
 
 
     def predict(self, observation, lstm_states, episode_starts):
@@ -45,5 +45,9 @@ class RecurrentPPOAgent:
     def save(self, path: str):
         self.model.save(path)
 
-    def load(self):
-        self.model.load("ppo_recurrent")
+    @staticmethod
+    def load(path, env):
+        model = RecurrentPPO.load(path, env=env)
+        agent = RecurrentPPOAgent(env)
+        agent.model = model
+        return model
