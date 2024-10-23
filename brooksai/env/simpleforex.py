@@ -85,12 +85,9 @@ class SimpleForexEnv(gym.Env):
 
         self._update_current_state()
 
-        self.previous_unrealized_pnl: List[float] = []
         self.reward: float = 0.0
         self.trade_window: int = ApplicationConstants.DEFAULT_TRADE_WINDOW
         self.done: bool = False
-        self.max_reward: float = 5.0
-        self.min_reward: float = -0.5
 
         # Agent variables
         self.initial_balance: float = initial_balance
@@ -180,11 +177,9 @@ class SimpleForexEnv(gym.Env):
         self._update_current_state()
         self.reward = 0.0
         self.trade_window = ApplicationConstants.DEFAULT_TRADE_WINDOW
-        self.max_reward: float = 5.0
-        self.min_reward: float = -0.5
+
 
         reset_open_trades()
-        self.previous_unrealized_pnl.clear()
 
         # Reset agent variables
         self.current_balance = self.initial_balance
@@ -234,7 +229,6 @@ class SimpleForexEnv(gym.Env):
 
         if self.done:
             self.current_balance += close_all_trades(self.current_price)
-            self.previous_unrealized_pnl.clear()
 
 
             if self.trade_window < 0:
