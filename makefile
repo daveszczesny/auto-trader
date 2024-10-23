@@ -42,7 +42,7 @@ setup-venv-w:
 	venv\Scripts\pip install git+https://github.com/DLR-RM/stable-baselines3
 	venv\Scripts\pip install pylint
 	venv\Scripts\pip install pytest
-	venv\Scripts\pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
+	venv\Scripts\pip install torch torchvision tensorboard
 
 clean-venv-w:
 	rmdir /s /q venv
