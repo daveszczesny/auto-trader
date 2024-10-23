@@ -1,4 +1,5 @@
 import os
+import logging
 
 from stable_baselines3.common.env_util import make_vec_env
 
@@ -7,28 +8,55 @@ from brooksai.env.scripts import register_env # pylint: disable=unused-import
 
 MODEL_PATH = "ppo_forex.zip"
 SAVE_FREQ  = 100_000
+CYCLES = 10
+TIMESTEPS_PER_CYCLE = 5_000_000
 
+logging.basicConfig(level=logging.INFO, format='%(name)s - %(message)s')
+logger = logging.getLogger('AutoTrader')
 
 def main():
     env = make_vec_env('ForexEnv-v0', n_envs=1)
 
     model = None
 
+    logger.info(r'''
+
+ $$$$$$\              $$\            $$$$$$$$\                       $$\                           $$\                       $$$$$$$\                                
+$$  __$$\             $$ |           \__$$  __|                      $$ |                          $$ |                      $$  __$$\                               
+$$ /  $$ |$$\   $$\ $$$$$$\    $$$$$$\  $$ | $$$$$$\  $$$$$$\   $$$$$$$ | $$$$$$\   $$$$$$\        $$$$$$$\  $$\   $$\       $$ |  $$ | $$$$$$\ $$\    $$\  $$$$$$\  
+$$$$$$$$ |$$ |  $$ |\_$$  _|  $$  __$$\ $$ |$$  __$$\ \____$$\ $$  __$$ |$$  __$$\ $$  __$$\       $$  __$$\ $$ |  $$ |      $$ |  $$ | \____$$\\$$\  $$  |$$  __$$\ 
+$$  __$$ |$$ |  $$ |  $$ |    $$ /  $$ |$$ |$$ |  \__|$$$$$$$ |$$ /  $$ |$$$$$$$$ |$$ |  \__|      $$ |  $$ |$$ |  $$ |      $$ |  $$ | $$$$$$$ |\$$\$$  / $$$$$$$$ |
+$$ |  $$ |$$ |  $$ |  $$ |$$\ $$ |  $$ |$$ |$$ |     $$  __$$ |$$ |  $$ |$$   ____|$$ |            $$ |  $$ |$$ |  $$ |      $$ |  $$ |$$  __$$ | \$$$  /  $$   ____|
+$$ |  $$ |\$$$$$$  |  \$$$$  |\$$$$$$  |$$ |$$ |     \$$$$$$$ |\$$$$$$$ |\$$$$$$$\ $$ |            $$$$$$$  |\$$$$$$$ |      $$$$$$$  |\$$$$$$$ |  \$  /   \$$$$$$$\ 
+\__|  \__| \______/    \____/  \______/ \__|\__|      \_______| \_______| \_______|\__|            \_______/  \____$$ |      \_______/  \_______|   \_/     \_______|
+                                                                                                             $$\   $$ |                                              
+                                                                                                             \$$$$$$  |                                              
+                                                                                                              \______/                                               
+''')
+
     # check if model exists
     if os.path.exists(MODEL_PATH):
-        print('Existing model found... loading')
+        logger.info('Existing model found... loading')
         model = RecurrentPPOAgent.load(MODEL_PATH, env)
-        print('Loaded model')
+        logger.info('Model loaded')
     else:
-        print('No existing model found... creating new model')
-        model = RecurrentPPOAgent(env)
-        model.save(MODEL_PATH)
-        print('Model created and saved')
+        logger.info('No existing model found...')
+        logger.info('Creating new model...')
 
-    for _ in range(10):
-        print('Learning...')
-        model.learn(total_timesteps=5_000_000)
+        model = RecurrentPPOAgent(env)
+        logger.info('Model created')
+
         model.save(MODEL_PATH)
+        logger.info('Model saved')
+
+
+    logger.info(f'Training model with {CYCLES} cycles, and {TIMESTEPS_PER_CYCLE} total timesteps per cycle...')
+    for i in range(CYCLES):
+        logger.info(f'Starting training cycle {i + 1}')
+        model.learn(total_timesteps=TIMESTEPS_PER_CYCLE)
+        logger.info(f'Finished training cycle {i + 1}')
+        model.save(MODEL_PATH)
+        logger.info(f'Model {i+1} saved')
 
 if __name__ == '__main__':
     main()
