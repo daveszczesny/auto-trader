@@ -1,6 +1,7 @@
 import logging
 
 import torch
+import numpy as np
 from brooksai.models.action import Action as ActionModel, TradeAction
 from brooksai.models.constants import Fee, ActionType, TradeType, action_type_mapping, ApplicationConstants
 from brooksai.models.trade import open_trades, Trade, get_trade_profit, close_trade
@@ -12,7 +13,7 @@ logger = logging.getLogger('AutoTrader')
 class ActionBuilder:
 
     @staticmethod
-    def construct_action(raw_action: torch.Tensor) -> ActionModel:
+    def construct_action(raw_action: np.ndarray) -> ActionModel:
         """
         Construct the Agent action from raw action values
         :param raw_action: Raw action values
@@ -117,6 +118,7 @@ class ActionApply:
             )
             ActionApply.action_tracker['trades_opened'] += 1
             trade_window = ApplicationConstants.DEFAULT_TRADE_WINDOW
+
         elif action.action_type is ActionType.CLOSE:
             if not action.trade:
                 return 0.0, trade_window
@@ -133,6 +135,7 @@ class ActionApply:
             return close_trade(action.trade, current_price), trade_window
         else:
             trade_window -= 1
+
         return 0.0, trade_window
 
     @staticmethod
