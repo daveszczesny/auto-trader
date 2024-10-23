@@ -1,14 +1,16 @@
 import os
 from datetime import datetime
 
-
+# Define constants for different modes
 DEBUG: str = "DEBUG"
 TEST: str = "TEST"
 PROD: str = "PROD"
 
-
 class Logger:
+    # Define the root directory for logs
     root_dir: str = "logs/"
+
+    # Define the root directory for the current run
     root_run: str = root_dir + datetime.now().strftime("%Y-%m-%d_%H-%M") + "/"
 
     def __init__(self, mode: str = 'test'):
@@ -47,9 +49,11 @@ class Logger:
                 file.write(f"{message}\n")
 
     def create_new_log_file(self):
+        # Create a new log file for the current run
         self.current_file = f"{self.root_run}{self.run:03d}/log_" + \
             str(len(os.listdir(f"{self.root_run}{self.run:03d}/")))
 
+        # If the mode is TEST, create a new csv file with the headers
         if self.mode == TEST:
             self.create_csv("step, action, trades open, "
                             "trade size, price, low, high, "

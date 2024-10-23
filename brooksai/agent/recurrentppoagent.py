@@ -8,6 +8,12 @@ MODEL_PATH = "ppo_forex.zip"
 SAVE_FREQ  = 50_000
 
 class RecurrentPPOAgent:
+    """
+    A class that encapsulates the RecurrentPPO model and provides an interface for training and prediction.
+
+    Controls hyperparameters and model architecture for the RecurrentPPO model.
+    """
+
     def __init__(self, env: gym.Env, log_dir: str = 'runs/ppo_recurrent'):
         self.env = Monitor(env)
         self.model = RecurrentPPO(
@@ -30,18 +36,32 @@ class RecurrentPPOAgent:
             policy_kwargs={"lstm_hidden_size":256, "n_lstm_layers": 2},
             tensorboard_log=log_dir
             )
+
         self.num_envs = 1
         self.log_dir = log_dir
 
-    def learn(self, total_timesteps: int = 4_000_000):
-        checkpoint_callback = CheckpointCallback(save_freq=SAVE_FREQ, save_path='models/', name_prefix='model')
+    def learn(self, total_timesteps: int = 5_000_000):
+        """
+        Train the model on the environment for a specified number of timesteps.
+        :param total_timesteps: The total number of timesteps to train the model for.
+        """
 
+        # Save the model every SAVE_FREQ timesteps
+        checkpoint_callback = CheckpointCallback(save_freq=SAVE_FREQ, save_path='models/', name_prefix='model')
         callback = CallbackList([checkpoint_callback])
 
         self.model.learn(total_timesteps, tb_log_name="ppo_recurrent", callback=callback)
 
 
     def predict(self, observation, lstm_states, episode_starts):
+        """
+        Predict an action given an observation and LSTM states.
+        :param observation: The observation to predict an action for.
+        :param lstm_states: The LSTM states to use for prediction.
+        :param episode_starts: A boolean array indicating whether each episode has started.
+        :return: The raw action predicted by the model.
+        """
+
         raw_action, lstm_states = self.model.predict(
             observation,
             lstm_states,
@@ -55,8 +75,16 @@ class RecurrentPPOAgent:
     def save(self, path: str):
         self.model.save(path)
 
+
     @staticmethod
-    def load(path, env):
+    def load(path: str, env: gym.Env):
+        """
+        Load a model from a specified path.
+        :param path: The path to load the model from.
+        :param env: The environment to load the model into.
+        :return: The loaded model.
+        """
+
         model = RecurrentPPO.load(path, env=env)
         agent = RecurrentPPOAgent(env)
         agent.model = model

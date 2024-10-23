@@ -21,12 +21,10 @@ from brooksai.utils.reward import RewardFunction
 from brooksai.services.logs.logger import Logger
 
 c = CurrencyConverter()
-
 logger = Logger(mode='test')
 
 # Agent improvment metrics
 # This is not reset per epsiode, but for every run of training
-
 agent_improvement_metric = {
     "win_rate": torch.tensor([], dtype=torch.float32, device=ApplicationConstants.DEVICE),
     "average_win": torch.tensor([], dtype=torch.float32, device=ApplicationConstants.DEVICE),
@@ -45,7 +43,6 @@ class SimpleForexEnv(gym.Env):
     The agent can only go long or short and close trades.
     The agent can only open one trade at a time.
     """
-
 
     def __init__(self,
                  data: str,
@@ -96,6 +93,10 @@ class SimpleForexEnv(gym.Env):
 
 
     def _update_current_state(self):
+        """
+        Update the current state of the environment
+            including current price, high, low, and EMAs
+        """
         if torch.cuda.is_available() and not self.data.is_cuda:
             self.data = self.data.cuda()
 
@@ -109,9 +110,18 @@ class SimpleForexEnv(gym.Env):
         )
 
     def step(self, action: np.ndarray) -> Tuple[torch.Tensor, float, bool, bool, dict]:
+        """
+        Method to process a step in the environment.
+        :param action: np.ndarray
+        :return: Tuple[torch.Tensor, float, bool, bool, dict], observation, reward, done, _, info
+        """
         # Construct the action from agent input
         action: Action = ActionBuilder.construct_action(action)
+
+        # Not needed right now, but will eventually once sl & tp are used by agent
         trigger_stop_or_take_profit(self.current_high, self.current_low)
+
+        # Apply the action to the environment
         value, tw = ActionApply.apply_action(action,
                                              current_price=self.current_price,
                                              trade_window=self.trade_window)
@@ -119,6 +129,7 @@ class SimpleForexEnv(gym.Env):
         self.current_balance += value
         self.trade_window = tw
 
+        # Calculate the reward for step
         self.reward = RewardFunction.calculate_reward(
             action,
             self.current_price
@@ -128,6 +139,7 @@ class SimpleForexEnv(gym.Env):
 
         self._update_current_state()
 
+        # Check if the episode is done, if so, process the episode
         self._is_done()
 
         # Log the step
@@ -148,6 +160,9 @@ class SimpleForexEnv(gym.Env):
         return self._get_observation(), self.reward, self.done, False, {}
 
     def render(self, mode: str = 'human') -> None:
+        """
+        Not rendering anything directly in the environment
+        """
         pass
 
     def reset(self,
@@ -178,7 +193,7 @@ class SimpleForexEnv(gym.Env):
         self.reward = 0.0
         self.trade_window = ApplicationConstants.DEFAULT_TRADE_WINDOW
 
-
+        # Close all trades
         reset_open_trades()
 
         # Reset agent variables
@@ -190,11 +205,11 @@ class SimpleForexEnv(gym.Env):
         logger.create_new_log_file()
         return self._get_observation(), {}
 
-
-    def _calc_sum_margin(self) -> float:
-        return sum(trade.get_margin() for trade in open_trades)
-
     def _get_unrealized_pnl(self) -> float:
+        """
+        Calculate the unrealized profit or loss of the open trades
+        """
+
         return float(sum(
             pip_to_profit(self.current_price - trade.open_price, trade.lot_size) if
             trade.trade_type is TradeType.LONG else
@@ -219,17 +234,27 @@ class SimpleForexEnv(gym.Env):
                 ], dtype=torch.float32, device=ApplicationConstants.DEVICE)
         return observation.cpu().numpy()
 
-
     def _is_done(self):
+        """
+        Check if the episode is done
+        """
+
+        """
+        Conditions for episode to be done:
+        1. 75% of initial balance is lost
+        2. Trade window is negative
+        """
         self.done = bool(
             self.initial_balance * 0.75 >= self.current_balance -
             abs(self.unrealised_pnl if self.unrealised_pnl < 0 else 0)
             or self.trade_window < 0
         )
 
+        # If the episode is done, close all trades
+        #   calculate the final balance
+        #   and calculate the reward
         if self.done:
             self.current_balance += close_all_trades(self.current_price)
-
 
             if self.trade_window < 0:
                 self.reward -= 0.2

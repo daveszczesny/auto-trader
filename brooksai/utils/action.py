@@ -3,8 +3,8 @@ import logging
 import torch
 import numpy as np
 from brooksai.models.action import Action as ActionModel, TradeAction
-from brooksai.models.constants import Fee, ActionType, TradeType, action_type_mapping, ApplicationConstants
-from brooksai.models.trade import open_trades, Trade, get_trade_profit, close_trade
+from brooksai.models.constants import ActionType, TradeType, ApplicationConstants, action_type_mapping
+from brooksai.models.trade import Trade, get_trade_profit, close_trade, open_trades
 
 
 logging.basicConfig(level=logging.INFO, format='%(name)s - %(message)s')
@@ -22,6 +22,7 @@ class ActionBuilder:
         action_type = ActionBuilder._get_action_type(raw_action)
 
         if ActionBuilder._is_invalid_acition(action_type, raw_action):
+            # If the action is invalid, do nothing
             return ActionModel(action_type=ActionType.DO_NOTHING)
 
         if action_type in [ActionType.LONG, ActionType.SHORT]:
@@ -98,6 +99,12 @@ class ActionApply:
 
     @staticmethod
     def apply_action(action: ActionModel, **kwargs):
+        """
+        Apply the action to the environment
+        :param action: Action to apply
+        :param kwargs: Additional arguments
+        :return: Profit or loss from the action
+        """
 
         trade_window = kwargs.get('trade_window', None)
         current_price = kwargs.get('current_price', None)
@@ -111,20 +118,28 @@ class ActionApply:
             return 0.0, trade_window
 
         if action.action_type in [ActionType.LONG, ActionType.SHORT]:
+            """
+            Open a LONG or SHORT trade
+            """
             Trade(
                 lot_size=action.trade_data.lot_size,
                 open_price=current_price,
                 trade_type=TradeType.LONG if action.action_type is ActionType.LONG else TradeType.SHORT
             )
+
             ActionApply.action_tracker['trades_opened'] += 1
             trade_window = ApplicationConstants.DEFAULT_TRADE_WINDOW
 
         elif action.action_type is ActionType.CLOSE:
+            """
+            Close existing trade
+            """
             if not action.trade:
                 return 0.0, trade_window
 
             ActionApply.action_tracker['trades_closed'] += 1
-            value = get_trade_profit(action.trade, current_price) - Fee.TRANSACTION_FEE
+            value = get_trade_profit(action.trade, current_price) - ApplicationConstants.TRANSACTION_FEE
+
             if value > 0:
                 ActionApply.action_tracker['total_won'] += value
                 ActionApply.action_tracker['times_won'] += 1
@@ -133,7 +148,9 @@ class ActionApply:
                 ActionApply.action_tracker['times_lost'] += 1
 
             return close_trade(action.trade, current_price), trade_window
+
         else:
+            # Action: DO NOTHING
             trade_window -= 1
 
         return 0.0, trade_window
