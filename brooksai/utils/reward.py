@@ -9,8 +9,8 @@ class RewardFunction:
     significant_loss_threshold = 80
     significant_gain_threshold = 80
 
-    maximum_reward_per_step = 0.91
-    minimum_reward_per_step = -1.9
+    maximum_reward_per_step = 0.8
+    minimum_reward_per_step = -0.8
 
     agent_improvement_metric = {
         'win_rate': torch.tensor([], dtype=torch.float32),
@@ -24,14 +24,16 @@ class RewardFunction:
     previous_actions = []
 
     @staticmethod
-    def do_nothing_curve(duration, max_reward = 0.01, min_punishment = -0.5, midpoint=60, steepness=1):
+    def do_nothing_curve(duration,
+                         max_reward = 0.01,
+                         min_punishment = minimum_reward_per_step,
+                         midpoint=60,
+                         steepness=0.1):
         duration = torch.tensor(duration, dtype=torch.float32)
-        return max_reward - (
-            max_reward - min_punishment
-        ) / (1 + torch.exp(-steepness + duration - midpoint))
+        return (max_reward - min_punishment) / (1+torch.exp(-steepness + duration - midpoint)) + min_punishment
 
     @staticmethod
-    def calculate_reward(action: Action, current_price, current_balance, trade_window):
+    def calculate_reward(action: Action, current_price):
 
         RewardFunction.previous_actions.append(action.action_type)
 
@@ -46,66 +48,55 @@ class RewardFunction:
 
 
         if invalid_trade or invalid_close:
-            # -0.5
-            reward -= Punishment.INVALID_ACTION
-            return RewardFunction.normalize_reward(reward)
-        
+            # -0.8
+            return -Punishment.INVALID_ACTION
 
-        if is_trade_open and \
-            (trade_profit < -RewardFunction.significant_loss_threshold or trade_profit > RewardFunction.significant_gain_threshold):
-            # -0.2
-            # -0.1
-            reward -= Punishment.SIGNIFICANT_LOSS
-            reward -= Punishment.RISKY_HOLDING
-            return RewardFunction.normalize_reward(reward)
 
         if action.action_type == ActionType.DO_NOTHING:
-            # 0.01
-
             duration_of_inactivity = RewardFunction.previous_actions.count(ActionType.DO_NOTHING)
-            reward += RewardFunction.do_nothing_curve(duration_of_inactivity)
-            return RewardFunction.normalize_reward(reward)
-        
-        if trade_window <= 0:
-            # -0.5
-            reward -= Punishment.NO_TRADE_WITHIN_WINDOW
+            reward += RewardFunction.do_nothing_curve(duration_of_inactivity) if not is_trade_open else 0
+
+            if is_trade_open and \
+            (trade_profit < -RewardFunction.significant_loss_threshold or \
+             trade_profit > RewardFunction.significant_gain_threshold):
+                # -0.2
+                # -0.1
+                reward -= Punishment.SIGNIFICANT_LOSS
+                reward -= Punishment.RISKY_HOLDING
+
+            # Clip reward to minimum reward
+            if reward < RewardFunction.minimum_reward_per_step:
+                return RewardFunction.minimum_reward_per_step
+
             return RewardFunction.normalize_reward(reward)
 
-        if action.action_type == ActionType.CLOSE:
+        elif action.action_type == ActionType.CLOSE:
+            RewardFunction.previous_actions = []
             # 0.2
             reward += Reward.CLOSE_TRADE
 
             if trade_profit > Fee.TRANSACTION_FEE:
                 # 0.5
                 reward += Reward.TRADE_CLOSED_IN_PROFIT
+            else:
+                # -0.5
+                reward -= Punishment.TRADE_CLOSED_IN_LOSS
 
             if 0 < ttl < ApplicationConstants.DEFAULT_TRADE_TTL - 5:
                 # 0.1
                 reward += Reward.TRADE_CLOSED_WITHIN_TTL
 
-            if ApplicationConstants.DEFAULT_TRADE_TTL - 10 < ttl < ApplicationConstants.DEFAULT_TRADE_TTL:
-                if trade_profit < Fee.TRANSACTION_FEE:
-                    # -0.5
-                    # -0.1
-                    reward -= Punishment.TRADE_CLOSED_IN_LOSS
-                    reward -= Punishment.CLOSING_TOO_QUICK
-
-                    return RewardFunction.normalize_reward(reward)
-
-            if trade_profit < Fee.TRANSACTION_FEE:
-                # -0.5
-                reward -= Punishment.TRADE_CLOSED_IN_LOSS
-                return RewardFunction.normalize_reward(reward)
-
-        if action.action_type in [ActionType.LONG, ActionType.SHORT]:
+        else: # action.action_type in [ActionType.LONG, ActionType.SHORT]
+            RewardFunction.previous_actions = []
             # 0.1
             reward += Reward.TRADE_OPENED
 
         return RewardFunction.normalize_reward(reward)
-    
+
 
     @staticmethod
     def normalize_reward(reward: float) -> float:
+        reward = reward.item() if isinstance(reward, torch.Tensor) else reward
         return 2 * (
             reward - RewardFunction.minimum_reward_per_step
         ) / ( RewardFunction.maximum_reward_per_step - RewardFunction.minimum_reward_per_step ) - 1
@@ -117,7 +108,7 @@ class RewardFunction:
         """
 
         reward: float = 0.0
-        
+
         win_rate = (times_won / trades_closed) if trades_closed > 0 else 0
         RewardFunction.agent_improvement_metric['win_rate'] = torch.cat(
             (RewardFunction.agent_improvement_metric['win_rate'], torch.tensor([win_rate]))
@@ -176,7 +167,9 @@ class RewardFunction:
         reward += Reward.AGENT_IMPROVED * win_lose_ratio_improved
         reward -= Punishment.AGENT_NOT_IMPROVING * (1 - win_lose_ratio_improved)
 
-        reward -= Punishment.NO_TRADE_OPEN * (RewardFunction.agent_improvement_metric['win_rate'][-1] == 0).float().item()
+        reward -= Punishment.NO_TRADE_OPEN * (
+            RewardFunction.agent_improvement_metric['win_rate'][-1] == 0
+        ).float().item()
 
         reward += Reward.AGENT_IMPROVED * win_rate_improved
         reward -= Punishment.AGENT_NOT_IMPROVING * (1 - win_rate_improved)

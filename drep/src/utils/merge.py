@@ -1,4 +1,3 @@
-
 import os
 from typing import Optional
 from datetime import datetime, timedelta
@@ -67,11 +66,8 @@ def merge_csv_files(from_directory: str,
                 for line in lines_to_write:
                     file.write(line)
                 files_merged += 1
-            
+
             print(f"Merged {files_merged} files out of {total_files_to_merge}, "
                              f"Skipped: {files_skipped} files")
         current_dt += timedelta(days=1)
     print('\n')
-
-
-merge_csv_files('res', 'training_data_5min.csv', '2008-01-01', '2022-01-01')
