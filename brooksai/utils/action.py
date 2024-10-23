@@ -3,7 +3,7 @@ import logging
 import torch
 import numpy as np
 from brooksai.models.action import Action as ActionModel, TradeAction
-from brooksai.models.constants import Fee, ActionType, TradeType, ApplicationConstants, action_type_mapping
+from brooksai.models.constants import ActionType, TradeType, ApplicationConstants, action_type_mapping
 from brooksai.models.trade import Trade, get_trade_profit, close_trade, open_trades
 
 
@@ -138,7 +138,7 @@ class ActionApply:
                 return 0.0, trade_window
 
             ActionApply.action_tracker['trades_closed'] += 1
-            value = get_trade_profit(action.trade, current_price) - Fee.TRANSACTION_FEE
+            value = get_trade_profit(action.trade, current_price) - ApplicationConstants.TRANSACTION_FEE
 
             if value > 0:
                 ActionApply.action_tracker['total_won'] += value

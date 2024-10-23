@@ -1,13 +1,8 @@
 import unittest
 
-import pandas as pd
-import pandas.testing as pdt
 import numpy as np
-import torch
-import gymnasium as gym
 
 import brooksai.models.trade as trade_model
-from brooksai.env.simpleforex import SimpleForexEnv
 from brooksai.models.action import Action as ActionModel, TradeAction
 from brooksai.utils.action import ActionBuilder, ActionApply
 from brooksai.models.constants import ActionType, ApplicationConstants

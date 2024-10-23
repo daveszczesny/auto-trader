@@ -4,7 +4,7 @@ import torch
 
 from brooksai.models import trade
 from brooksai.models.action import Action
-from brooksai.models.constants import Punishment, Reward, ApplicationConstants, Fee, ActionType
+from brooksai.models.constants import Punishment, Reward, ApplicationConstants, ActionType
 
 class RewardFunction:
     """
@@ -103,7 +103,7 @@ class RewardFunction:
             reward += Reward.CLOSE_TRADE
 
             # Provide bonus reward / punishment based on trade profit
-            if trade_profit > Fee.TRANSACTION_FEE:
+            if trade_profit > ApplicationConstants.TRANSACTION_FEE:
                 reward += Reward.TRADE_CLOSED_IN_PROFIT
             else:
                 reward -= Punishment.TRADE_CLOSED_IN_LOSS

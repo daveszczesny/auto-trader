@@ -205,11 +205,11 @@ class SimpleForexEnv(gym.Env):
         logger.create_new_log_file()
         return self._get_observation(), {}
 
-
-    def _calc_sum_margin(self) -> float:
-        return sum(trade.get_margin() for trade in open_trades)
-
     def _get_unrealized_pnl(self) -> float:
+        """
+        Calculate the unrealized profit or loss of the open trades
+        """
+
         return float(sum(
             pip_to_profit(self.current_price - trade.open_price, trade.lot_size) if
             trade.trade_type is TradeType.LONG else
@@ -233,7 +233,6 @@ class SimpleForexEnv(gym.Env):
                 len(open_trades)
                 ], dtype=torch.float32, device=ApplicationConstants.DEVICE)
         return observation.cpu().numpy()
-
 
     def _is_done(self):
         """
