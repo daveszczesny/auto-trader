@@ -1,7 +1,13 @@
+import logging
+
 import torch
 from brooksai.models.action import Action as ActionModel, TradeAction
 from brooksai.models.constants import Fee, ActionType, TradeType, action_type_mapping, ApplicationConstants
 from brooksai.models.trade import open_trades, Trade, get_trade_profit, close_trade
+
+
+logging.basicConfig(level=logging.INFO, format='%(name)s - %(message)s')
+logger = logging.getLogger('AutoTrader')
 
 class ActionBuilder:
 
@@ -96,11 +102,11 @@ class ActionApply:
         current_price = kwargs.get('current_price', None)
 
         if trade_window is None:
-            print("Trade window is None")
+            logger.warning("Trade window is None")
             trade_window = ApplicationConstants.DEFAULT_TRADE_WINDOW
 
         if current_price is None:
-            print("Current price is None")
+            logger.warning("Current price is None")
             return 0.0, trade_window
 
         if action.action_type in [ActionType.LONG, ActionType.SHORT]:
