@@ -1,6 +1,7 @@
 import logging
 
 import torch
+import numpy as np
 from brooksai.models.action import Action as ActionModel, TradeAction
 from brooksai.models.constants import Fee, ActionType, TradeType, ApplicationConstants, action_type_mapping
 from brooksai.models.trade import Trade, get_trade_profit, close_trade, open_trades
@@ -12,7 +13,7 @@ logger = logging.getLogger('AutoTrader')
 class ActionBuilder:
 
     @staticmethod
-    def construct_action(raw_action: torch.Tensor) -> ActionModel:
+    def construct_action(raw_action: np.ndarray) -> ActionModel:
         """
         Construct the Agent action from raw action values
         :param raw_action: Raw action values
