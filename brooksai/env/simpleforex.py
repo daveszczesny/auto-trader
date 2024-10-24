@@ -1,4 +1,4 @@
-from typing import Tuple, Optional, List, Dict, Any
+from typing import Tuple, Optional, Dict, Any
 
 import dask.dataframe as dd
 
@@ -120,7 +120,7 @@ class SimpleForexEnv(gym.Env):
 
         # Not needed right now, but will eventually once sl & tp are used by agent
         trigger_stop_or_take_profit(self.current_high, self.current_low)
-        
+
         # Calculate the reward for step
         self.reward = self._calculate_reward(action)
 
@@ -234,7 +234,6 @@ class SimpleForexEnv(gym.Env):
         return observation.cpu().numpy()
 
     def _calculate_reward(self, action: Action) -> float:
-        
         if agent_improvement_metric['steps'].numel() > 0:
             best_step = agent_improvement_metric['steps']
             best_step = best_step.to(torch.int32)

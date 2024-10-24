@@ -44,4 +44,3 @@ class ApplicationConstants:
     DEVICE = 'cpu'
 
     DO_NOTHING_MIDPOINT = 180 # 3 hours
-

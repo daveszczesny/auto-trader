@@ -48,7 +48,7 @@ class RewardFunction:
         if current_step % RewardFunction.sparse_reward_interval == 0 and current_step != 0:
             reward += RewardFunction.get_sparse_reward(current_price)
             reward += RewardFunction.get_reward_for_best_steps(current_step, best_step)
-        
+
         reward += RewardFunction.get_dense_reward(action, current_price)
         return RewardFunction.normalize_reward(reward)
 
@@ -90,8 +90,8 @@ class RewardFunction:
                 elif trade_profit > RewardFunction.significant_gain_threshold:
                     reward -= Punishment.SIGNIFICANT_LOSS
 
-            if reward < RewardFunction.minimum_reward_per_step:
-                reward = RewardFunction.minimum_reward_per_step
+            # Clip reward to be within the range
+            reward = max(reward, RewardFunction.minimum_reward_per_step)
 
         elif action.action_type == ActionType.CLOSE:
 
@@ -166,7 +166,7 @@ class RewardFunction:
         average_loss = float(
             ActionApply.get_action_tracker('total_lost')) / float(ActionApply.get_action_tracker('trades_closed')
             ) if ActionApply.get_action_tracker('trades_closed') > 0 else 0
-        
+
         times_won = ActionApply.get_action_tracker('times_won')
         trades_closed = ActionApply.get_action_tracker('trades_closed')
 
@@ -209,7 +209,7 @@ class RewardFunction:
         """
         if current_step > best_step:
             return Reward.AGENT_IMPROVED
-        
+
         return 0
 
     @staticmethod
@@ -241,10 +241,11 @@ class RewardFunction:
         Normalize the reward to be between -1 and 1.
         """
         reward = reward.item() if isinstance(reward, torch.Tensor) else reward
-        
-        return 2 * (
-            (reward - RewardFunction.minimum_reward_per_step) / (RewardFunction.maximum_reward_per_step - RewardFunction.minimum_reward_per_step)
-        ) - 1
+
+        top_part = reward - RewardFunction.minimum_reward_per_step
+        bottom_part = RewardFunction.maximum_reward_per_step - RewardFunction.minimum_reward_per_step
+
+        return 2 * ((top_part) / (bottom_part)) - 1
 
 
     @staticmethod
