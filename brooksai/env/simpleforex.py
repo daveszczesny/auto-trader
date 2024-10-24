@@ -120,6 +120,9 @@ class SimpleForexEnv(gym.Env):
 
         # Not needed right now, but will eventually once sl & tp are used by agent
         trigger_stop_or_take_profit(self.current_high, self.current_low)
+        
+        # Calculate the reward for step
+        self.reward = self._calculate_reward(action)
 
         # Apply the action to the environment
         value, tw = ActionApply.apply_action(action,
@@ -129,11 +132,6 @@ class SimpleForexEnv(gym.Env):
         self.current_balance += value
         self.trade_window = tw
 
-        # Calculate the reward for step
-        self.reward = RewardFunction.calculate_reward(
-            action,
-            self.current_price
-        )
 
         self.unrealised_pnl = float(self._get_unrealized_pnl())
 
@@ -201,6 +199,7 @@ class SimpleForexEnv(gym.Env):
         self.unrealised_pnl = 0.0
 
         ActionApply.reset_tracker()
+        RewardFunction.reset_rewards()
 
         logger.create_new_log_file()
         return self._get_observation(), {}
@@ -234,6 +233,21 @@ class SimpleForexEnv(gym.Env):
                 ], dtype=torch.float32, device=ApplicationConstants.DEVICE)
         return observation.cpu().numpy()
 
+    def _calculate_reward(self, action: Action) -> float:
+        
+        if agent_improvement_metric['steps'].numel() > 0:
+            best_step = agent_improvement_metric['steps']
+            best_step = best_step.to(torch.int32)
+            best_step = torch.max(best_step).item()
+        else:
+            best_step = 0
+
+        return RewardFunction.get_reward(action,
+                                         self.current_price,
+                                         self.current_step,
+                                         best_step)
+
+
     def _is_done(self):
         """
         Check if the episode is done
@@ -266,13 +280,6 @@ class SimpleForexEnv(gym.Env):
                 ActionApply.get_action_tracker('total_lost')) / float(ActionApply.get_action_tracker('trades_closed')
                 ) if ActionApply.get_action_tracker('trades_closed') > 0 else 0
 
-            self.reward += RewardFunction.calculate_agent_improvement(
-                average_win,
-                average_loss,
-                ActionApply.get_action_tracker('times_won'),
-                ActionApply.get_action_tracker('trades_closed'),
-                self.current_step
-            )
 
             # Log tracker
             logger.log_test('\nAction Tracker')

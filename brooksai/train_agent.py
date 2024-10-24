@@ -9,7 +9,7 @@ from brooksai.env.scripts import register_env # pylint: disable=unused-import
 MODEL_PATH = "ppo_forex.zip"
 SAVE_FREQ  = 100_000
 CYCLES = 10
-TIMESTEPS_PER_CYCLE = 5_000_000
+TIMESTEPS_PER_CYCLE = 200_000
 
 logging.basicConfig(level=logging.INFO, format='%(name)s - %(message)s')
 logger = logging.getLogger('AutoTrader')
