@@ -193,6 +193,8 @@ class ActionTest(unittest.TestCase):
         self.assertEqual(ActionApply.get_action_tracker('times_won'), 0)
         self.assertEqual(ActionApply.get_action_tracker('times_lost'), 0)
 
+        self.assertIsInstance(ActionApply.get_action_tracker('times_won'), int)
+
         # Open a trade
         action = np.array([0.34, 0.5, 0, 0], np.float32)
         action_model = ActionBuilder.construct_action(action)
