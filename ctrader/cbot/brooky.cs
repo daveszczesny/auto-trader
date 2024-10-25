@@ -1,8 +1,9 @@
 using System;
-using Syste,.Collections.Generic;
+using System.Collections.Generic;
 using System.Net.Http;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using cAlgo.API;
 using cAlgo.API.Collections;
 using cAlgo.API.Indicators;
@@ -18,23 +19,24 @@ namespace cAlgo.Robots
         private ExponentialMovingAverage ema21;
         private ExponentialMovingAverage ema50;
         private ExponentialMovingAverage ema200;
+        
+        private readonly HttpClient httpClient = new();
 
         protected override void OnStart()
         {
-            Positions.Opened += OnPositionsOpened;
 
             // initialize the indicators
-            ema21 = Indicators.ExponentialMovingAverage(MarketSeries.Close, 21);
-            ema50 = Indicators.ExponentialMovingAverage(MarketSeries.Close, 50);
-            ema200 = Indicators.ExponentialMovingAverage(MarketSeries.Close, 200);
+            ema21 = Indicators.ExponentialMovingAverage(Bars.ClosePrices, 21);
+            ema50 = Indicators.ExponentialMovingAverage(Bars.ClosePrices, 50);
+            ema200 = Indicators.ExponentialMovingAverage(Bars.ClosePrices, 200);
         }
 
         protected override void OnBar()
         {
             // Retrive current market data
-            double currentBidPrice = Symbol.Bid;
-            double currentHigh = MarketSeries.High.LastValue;
-            double currentLow = MarketSeries.Low.LastValue;
+            DataSeries currentBidPrice = Bars.ClosePrices;
+            DataSeries currentHigh = Bars.HighPrices;
+            DataSeries currentLow = Bars.LowPrices;
             double currentEma21 = ema21.Result.LastValue;
             double currentEma50 = ema50.Result.LastValue;
             double currentEma200 = ema200.Result.LastValue;
@@ -51,13 +53,10 @@ namespace cAlgo.Robots
                 Ema200 = currentEma200
             };
 
-            string jsonData = JsonConvert.SerializeObject(data);
+            string jsonData = JsonSerializer.Serialize(data);
 
             // Send data over API
-            string content = SendPostRequest(jsonData);
-
-            HandleResponse(content);
-
+            SendPostRequest(jsonData);
         }
 
 
@@ -65,7 +64,7 @@ namespace cAlgo.Robots
         {
             try
             {
-                var API = '{API-ENDPOINT}';
+                var API = "{API-ENDPOINT}";
                 var content = new StringContent(jsonData, Encoding.UTF8, "application/json");
                 HttpResponseMessage response = await httpClient.PostAsync(API, content);
 
@@ -73,13 +72,15 @@ namespace cAlgo.Robots
                 {
                     Print("Data sent successfully");
 
-                    return await response.Content.ReadAsStringAsync();
+                    string conent = await response.Content.ReadAsStringAsync();
+                    HandleResponse(content.ToString());
                 }
                 else
                 {
                     Print("Failed to send data");
-                    return null;
                 }
+            }catch(Exception e){
+                Console.WriteLine(e);
             }
         }
 
@@ -87,7 +88,7 @@ namespace cAlgo.Robots
         {
             if (content == null) return;
 
-            var response = JsonConvert.DeserializeObject<Dictionary<string, string>>(content);
+            var response = JsonSerializer.Deserialize<Dictionary<string, string>>(content);
 
             response.TryGetValue("action", out string action);
             response.TryGetValue("lot_size", out string lotSize);
@@ -98,12 +99,12 @@ namespace cAlgo.Robots
             double volume = double.Parse(lotSize) * 100_000;
             string symbol = "EURUSD";
 
-            if (action == 'BUY' || action == 'SELL')
+            if (action == "BUY" || action == "SELL")
             {
-                TradeType tradeType = action == 'BUY' ? TradeType.Buy : TradeType.Sell;
-                ExecuteTrade(tradeType, symbol, volume, double.Parse(stopLoss), double.Parse(takeProfit));
+                TradeType tradeType = action == "BUY" ? TradeType.Buy : TradeType.Sell;
+                ExecuteMarketOrder(tradeType, symbol, volume);
             }
-            else if (action == 'CLOSE')
+            else if (action == "CLOSE")
             {
 
                 var position = Positions.Find("Brooky");
