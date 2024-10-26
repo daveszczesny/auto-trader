@@ -1,5 +1,9 @@
 
-import gymnasium as gym
+try:
+    import gymnasium as gym
+except Exception as _:
+    from typing import Any
+
 from sb3_contrib import RecurrentPPO
 from stable_baselines3.common.callbacks import CheckpointCallback, CallbackList
 from stable_baselines3.common.monitor import Monitor
@@ -14,7 +18,7 @@ class RecurrentPPOAgent:
     Controls hyperparameters and model architecture for the RecurrentPPO model.
     """
 
-    def __init__(self, env: gym.Env, log_dir: str = 'runs/ppo_recurrent'):
+    def __init__(self, env: gym.Env | Any, log_dir: str = 'runs/ppo_recurrent'):
         self.env = Monitor(env)
         self.model = RecurrentPPO(
             "MlpLstmPolicy",
@@ -77,7 +81,7 @@ class RecurrentPPOAgent:
 
 
     @staticmethod
-    def load(path: str, env: gym.Env):
+    def load(path: str, env: gym.Env | Any):
         """
         Load a model from a specified path.
         :param path: The path to load the model from.

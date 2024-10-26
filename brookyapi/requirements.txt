@@ -1,0 +1,7 @@
+Flask==3.0.3
+gunicorn==22.0.0
+Werkzeug==3.0.3
+numpy
+google-cloud-storage
+stable_baselines3
+sb3-contrib
