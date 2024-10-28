@@ -7,7 +7,7 @@ from flask import jsonify, make_response
 import numpy as np
 
 # pylint: disable=import-error
-from google.cloud import storage # pylint: disable=no-nmae-in-module
+from google.cloud import storage # pylint: disable=no-name-in-module
 
 from stable_baselines3.common.env_util import make_vec_env
 

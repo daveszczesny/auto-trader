@@ -10,6 +10,8 @@ setup-venv:
 	venv/bin/pip install pytest
 	venv/bin/pip install torch torchvision tensorboard
 
+	venv/bin/pip install -r brookyapi/requirements.txt
+
 clean-venv:
 	rm -rf venv
 
