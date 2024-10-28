@@ -2,7 +2,7 @@
 
 setup-venv:
 	rm -rf venv
-	python3 -m venv venv
+	python3.10 -m venv venv
 	sh venv/bin/activate
 	venv/bin/pip install -r requirements/requirements.txt
 	venv/bin/pip install git+https://github.com/DLR-RM/stable-baselines3
@@ -18,6 +18,7 @@ train:
 
 lint:
 	venv/bin/pylint --fail-under=9 brooksai
+	venv/bin/pylint --fail-under=9 brookyapi
 	venv/bin/pylint --fail-under=9 drep
 
 test-unit:

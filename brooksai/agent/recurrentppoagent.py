@@ -2,7 +2,9 @@
 try:
     import gymnasium as gym
 except Exception as _:
-    from typing import Any
+    pass
+
+from typing import Any
 
 from sb3_contrib import RecurrentPPO
 from stable_baselines3.common.callbacks import CheckpointCallback, CallbackList
@@ -81,7 +83,7 @@ class RecurrentPPOAgent:
 
 
     @staticmethod
-    def load(path: str, env: gym.Env | Any):
+    def load(path: str, env: gym.Env | Any = None):
         """
         Load a model from a specified path.
         :param path: The path to load the model from.
@@ -92,4 +94,4 @@ class RecurrentPPOAgent:
         model = RecurrentPPO.load(path, env=env)
         agent = RecurrentPPOAgent(env)
         agent.model = model
-        return model
+        return agent

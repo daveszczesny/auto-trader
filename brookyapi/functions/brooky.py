@@ -6,8 +6,14 @@ from typing import Dict, Any
 from flask import jsonify, make_response
 import numpy as np
 
-from google.cloud import storage
+# pylint: disable=import-error
+from google.cloud import storage # pylint: disable=no-nmae-in-module
 
+from stable_baselines3.common.env_util import make_vec_env
+
+# pylint: disable=import-error
+# pylint: disable=unused-import
+from utils import register_env
 from brooksai.agent.recurrentppoagent import RecurrentPPOAgent
 
 logging.basicConfig(level=logging.INFO)
@@ -18,12 +24,13 @@ BUCKET_NAME = 'at-brooky-bucket'
 DIRECTORY = 'model'
 MODEL_FILE = 'ppo_forex.zip'
 
-
 model, lstm_states, episode_start = None, None, None
 
+
 def predict(request):
+    global model
     logger.info("Processing prediction request")
-    
+
     try:
         context = request.get_json()
         logger.info(f"Received data: {context}")
@@ -42,9 +49,6 @@ def predict(request):
             return _handle_bad_request("Failed to retrieve model")
 
         lstm_states, episode_start = _get_instances()
-        if not lstm_states or not episode_start:
-            return _handle_bad_request("Failed to retrieve instances")
-
 
         action, lstm_states = model.predict(observation, lstm_states, episode_starts=episode_start)
         episode_start = True
@@ -54,19 +58,20 @@ def predict(request):
 
         patch_instances(lstm_states, episode_start)
 
-        response = jsonify({'action': action})
+        response = jsonify({'action': action.tolist()})
         return make_response(response, 200)
 
     except Exception as ex:
         logger.error('Failed to predict', exc_info=ex)
         return _handle_server_error(ex)
 
+
 def patch_instances(lstm_states, episode_start):
     """
     This method will patch the model, lstm states and episode start
     """
     data: Dict[str, Any] = {
-        "lstm_states": lstm_states,
+        "lstm_states": [state.tolist() for state in lstm_states] if lstm_states is not None else None,
         "episode_start": episode_start
     }
 
@@ -95,7 +100,13 @@ def _get_model_object() -> RecurrentPPOAgent:
     blob.download_to_filename(MODEL_FILE)
     logger.info("Model downloaded successfully")
 
-    model = RecurrentPPOAgent.load(MODEL_FILE)
+    logger.info("Setting up environment")
+    env = make_vec_env('LayerEnv-v0', n_envs=1)
+    logger.info("Environment loaded successfully")
+
+    model = RecurrentPPOAgent.load(MODEL_FILE, env=env)
+
+    logger.info("Successfully retrieved and setup model")
 
     return model
 
@@ -122,7 +133,12 @@ def _get_instances():
 
     with open("instances.json", "r") as file:
         data = json.load(file)
-        lstm_states = data.get("lstm_states", None)
+        logger.info(f'Instances data: {data}')
+        data_states = data.get('lstm_states', None)
+        if lstm_states is not None:
+            lstm_states = tuple(np.array(state) for state in data_states)
+        else:
+            lstm_states = None
         episode_start = data.get("episode_start", None)
 
     return lstm_states, episode_start
@@ -138,7 +154,7 @@ def _handle_bad_request(message):
     """
     This method will handle bad request
     """
-    
+
     response = jsonify({'error': message})
     return make_response(response, 400)
 

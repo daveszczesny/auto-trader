@@ -2,7 +2,7 @@ import os
 import logging
 
 from flask import Flask, request
-from functions import brooky
+from functions import brooky # pylint: disable=import-error
 
 app = Flask(__name__)
 
@@ -14,14 +14,13 @@ lstm_states = None
 
 @app.route('/')
 def defaul_func():
-    
     name = os.environ.get('NAME', 'World')
     return f'Hello, {name}!'
 
 
 @app.route('/brooksai', methods=['POST'])
 def brooksai_predict():
-    brooky.predict(request)
+    return brooky.predict(request)
 
 
 if __name__ == "__main__":
