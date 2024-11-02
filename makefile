@@ -26,6 +26,7 @@ lint:
 test-unit:
 	PYTHONPATH=${shell pwd} venv/bin/pytest brooksai/tests/unit
 
+# Commands for TradeVis
 setup-venv-tradevis:
 	rm -rf tradevis/venv
 	python3 -m venv tradevis/venv
@@ -34,6 +35,7 @@ setup-venv-tradevis:
 
 run-tradevis:
 	PYTHONPATH=${shell pwd} tradevis/venv/bin/python tradevis/main.py
+
 
 # Windows Commands
 

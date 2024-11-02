@@ -8,7 +8,6 @@ from gymnasium import spaces
 class LayerEnv(gym.Env):
 
     def __init__(self, render_mode = None):
-        super().__init__(self, LayerEnv)
 
         self.render_mode = render_mode
 
