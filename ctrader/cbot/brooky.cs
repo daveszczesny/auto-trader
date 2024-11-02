@@ -43,17 +43,23 @@ namespace cAlgo.Robots
 
             // Send the data over to BrooksAI
 
-            var data = new
+            var payload = new
             {
-                BidPrice = currentBidPrice,
-                High = currentHigh,
-                Low = currentLow,
-                Ema21 = currentEma21,
-                Ema50 = currentEma50,
-                Ema200 = currentEma200
+                balance = Account.Balance,
+                unrealized_pnl = Account.UnrealizedPnL,
+                current_price = currentBidPrice,
+                current_high = currentHigh,
+                current_low = currentLow,
+                open_trades = 0,
+                indicators = new[]
+                {
+                    new {name = "ema_200", value = currentEma200},
+                    new {name = "ema_50", value = currentEma50},
+                    new {name = "ema_21", value = currentEma21}
+                }
             };
 
-            string jsonData = JsonSerializer.Serialize(data);
+            string jsonData = JsonSerializer.Serialize(payload);
 
             // Send data over API
             SendPostRequest(jsonData);
@@ -64,7 +70,7 @@ namespace cAlgo.Robots
         {
             try
             {
-                var API = "{API-ENDPOINT}";
+                var API = "https://brooky-api-550951781970.europe-west2.run.app/brooksai";
                 var content = new StringContent(jsonData, Encoding.UTF8, "application/json");
                 HttpResponseMessage response = await httpClient.PostAsync(API, content);
 
