@@ -24,8 +24,8 @@ class RewardFunction:
     significant_loss_threshold: float = -80.0
     significant_gain_threshold: float = 150.0
 
-    maximum_reward_per_step: float = 0.8
-    minimum_reward_per_step: float = -0.8
+    maximum_reward_per_step: float = 1
+    minimum_reward_per_step: float = -1
 
     sparse_reward_interval: int = 180
 
@@ -145,7 +145,7 @@ class RewardFunction:
         if market_sentiment == 1:
             ratio_of_long_short = actions["LONG"] / actions["SHORT"] if actions["SHORT"] > 0 else 1
 
-            if ratio_of_long_short > 1.5:
+            if ratio_of_long_short > 1.1:
                 reward += Reward.AGENT_IMPROVED
             else:
                 reward -= Punishment.AGENT_NOT_IMPROVING
@@ -153,7 +153,7 @@ class RewardFunction:
         else:
             ratio_of_short_long = actions["SHORT"] / actions["LONG"] if actions["LONG"] > 0 else 1
 
-            if ratio_of_short_long > 1.5:
+            if ratio_of_short_long > 1.1:
                 reward += Reward.AGENT_IMPROVED
             else:
                 reward -= Punishment.AGENT_NOT_IMPROVING

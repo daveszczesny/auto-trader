@@ -29,11 +29,11 @@ class RecurrentPPOAgent:
             n_steps=2048,
             batch_size=256, # larger number reduces variance in learning?
             n_epochs=10,
-            gamma=0.96, # encourages more immediate rewards
+            gamma=0.94, # encourages more immediate rewards
             learning_rate=3e-4,
             clip_range=0.2,
             gae_lambda=0.9,
-            ent_coef=0.03, # entropy coefficient
+            ent_coef=0.06, # entropy coefficient
             vf_coef=0.5,
             max_grad_norm=0.5, # gradient clipping
             use_sde=True,
