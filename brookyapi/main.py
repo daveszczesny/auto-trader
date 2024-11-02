@@ -13,7 +13,7 @@ model = None
 lstm_states = None
 
 @app.route('/')
-def defaul_func():
+def default_func():
     name = os.environ.get('NAME', 'World')
     return f'Hello, {name}!'
 
