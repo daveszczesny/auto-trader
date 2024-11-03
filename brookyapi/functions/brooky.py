@@ -64,7 +64,7 @@ def predict(request):
 
     except Exception as ex:
         logger.error('Error while processing prediction', exc_info=ex)
-        return _handle_error(ex, StatusCode.INTERNAL_SERVER_ERROR)
+        return _handle_error(ErrorSet.UNKNOWN_ERROR, StatusCode.INTERNAL_SERVER_ERROR)
 
 
 def patch_instances(
@@ -169,7 +169,7 @@ def _get_instances() -> Tuple[Tuple[np.ndarray], bool, Optional[ErrorEntry], int
             data = json.load(file)
             logger.info(f'Instances data: {data}')
             data_states = data.get('lstm_states', None)
-            if lstm_states is not None:
+            if data_states is not None:
                 lstm_states = tuple(np.array(state) for state in data_states)
             else:
                 lstm_states = None
