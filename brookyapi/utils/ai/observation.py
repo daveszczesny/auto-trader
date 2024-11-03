@@ -69,6 +69,7 @@ def construct_observation(payload: Dict[str, Any]) -> Tuple[Optional[np.ndarray]
 
 
     if len(observation) != 9:
+        # This should never happen
         logger.error(f'Observation does not contain 9 elements: {repr(observation)}')
         return ErrorSet.INVALID_OBSERVATION_LENGTH, StatusCode.BAD_REQUEST
 

@@ -1,0 +1,22 @@
+{
+    "balance": 1000.0,
+    "unrealized_pnl": 1030000,
+    "current_price": 1.99,
+    "current_high": 1.46,
+    "current_low": 1.9,
+    "open_trades": 0,
+    "indicators": [
+        {
+            "name": "ema_200",
+            "value": 1.4
+        },
+        {
+            "name": "ema_50",
+            "value": 1.4
+        },
+        {
+            "name": "ema_21",
+            "value": 1.380
+        }
+    ]
+}

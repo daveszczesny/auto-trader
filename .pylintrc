@@ -1,5 +1,5 @@
 [MASTER]
-init-hook="import sys; sys.path.append('.')"
+init-hook="import sys; sys.path.append('.'); sys.path.append('brookyapi/')"
 
 [DESIGN]
 max-line-length=120

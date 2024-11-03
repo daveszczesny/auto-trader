@@ -2,7 +2,7 @@ import os
 import logging
 
 from flask import Flask, request
-from functions import brooky # pylint: disable=import-error
+from functions import brooky
 
 app = Flask(__name__)
 
