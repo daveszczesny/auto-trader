@@ -12,29 +12,64 @@ When deploying / "enabling" the AI the AI won't be able to perform any action un
 
 
 # Usage
-Using `postman` we can call our [POST] api endpoint `https://brooky-api-550951781970.europe-west2.run.app/brooksai`
+Using `postman` we can call our api endpoint `https://brooky-api-550951781970.europe-west2.run.app/brooksai [POST]`
 ```
 {
-    "balance": 1000.0,
-    "unrealized_pnl": 0.0,
-    "current_price": 1.459,
-    "current_high": 1.46,
-    "current_low": 1.459,
-    "open_trades": 0,
-    "indicators": [
-        {
-            "name": "ema_200",
-            "value": 1.459
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "balance": {
+      "type": "number",
+      "description": "The balance of the account."
+    },
+    "unrealized_pnl": {
+      "type": "number",
+      "description": "The unrealized profit and loss."
+    },
+    "current_price": {
+      "type": "number",
+      "description": "The current price."
+    },
+    "current_high": {
+      "type": "number",
+      "description": "The current high price."
+    },
+    "current_low": {
+      "type": "number",
+      "description": "The current low price."
+    },
+    "open_trades": {
+      "type": "integer",
+      "description": "The number of open trades."
+    },
+    "indicators": {
+      "type": "array",
+      "description": "List of indicators.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The name of the indicator."
+          },
+          "value": {
+            "type": "number",
+            "description": "The value of the indicator."
+          }
         },
-        {
-            "name": "ema_50",
-            "value": 1.459
-        },
-        {
-            "name": "ema_21",
-            "value": 1.459
-        }
-    ]
+        "required": ["name", "value"]
+      }
+    }
+  },
+  "required": [
+    "balance",
+    "unrealized_pnl",
+    "current_price",
+    "current_high",
+    "current_low",
+    "open_trades",
+    "indicators"
+  ]
 }
 ```
 

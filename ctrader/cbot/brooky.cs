@@ -42,7 +42,6 @@ namespace cAlgo.Robots
             double currentEma200 = ema200.Result.LastValue;
 
             // Send the data over to BrooksAI
-
             var payload = new
             {
                 balance = Account.Balance,
