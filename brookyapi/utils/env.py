@@ -6,6 +6,9 @@ import gymnasium as gym
 from gymnasium import spaces
 
 class LayerEnv(gym.Env):
+    """
+    This is a pseudo-environment, which acts as a layer between model and the brooker in prod environment
+    """
 
     def __init__(self, render_mode = None):
 

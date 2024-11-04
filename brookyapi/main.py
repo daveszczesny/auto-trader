@@ -2,20 +2,15 @@ import os
 import logging
 
 from flask import Flask, request
-from functions import brooky # pylint: disable=import-error
+from functions import brooky
 
 app = Flask(__name__)
 
 logging.basicConfig(level=logging.INFO)
 
-
-model = None
-lstm_states = None
-
 @app.route('/')
 def default_func():
-    name = os.environ.get('NAME', 'World')
-    return f'Hello, {name}!'
+    return 'Welcome to Brooky API!'
 
 
 @app.route('/brooksai', methods=['POST'])

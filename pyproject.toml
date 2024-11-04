@@ -1,0 +1,9 @@
+[tool.pytest.ini_options]
+pythonpath = [
+    ".",
+    "./brookyapi/"
+]
+testpaths = [
+    "./brooksai/tests/",
+    "./brookyapi/tests/"
+]

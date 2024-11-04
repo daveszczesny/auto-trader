@@ -4,7 +4,7 @@ import logging
 from stable_baselines3.common.env_util import make_vec_env
 
 from brooksai.agent.recurrentppoagent import RecurrentPPOAgent
-from brooksai.env.scripts import register_env # pylint: disable=unused-import
+from brooksai.env.scripts import register_env
 
 MODEL_PATH = "ppo_forex.zip"
 SAVE_FREQ  = 100_000

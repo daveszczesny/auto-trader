@@ -1,6 +1,7 @@
 Flask==3.0.3
 gunicorn==22.0.0
 Werkzeug==3.0.3
+dataclasses_json
 numpy
 google-cloud-storage
 google-api-core

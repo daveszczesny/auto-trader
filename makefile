@@ -25,6 +25,7 @@ lint:
 
 test-unit:
 	PYTHONPATH=${shell pwd} venv/bin/pytest brooksai/tests/unit
+	PYTHONPATH=${shell pwd} venv/bin/pytest brookyapi/tests/unit
 
 # Commands for TradeVis
 setup-venv-tradevis:
