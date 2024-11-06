@@ -1,7 +1,7 @@
 import os
 import logging
 
-from flask import Flask, request
+from flask import Flask
 from endpoints.brooksai import brooksai_bp
 
 app = Flask(__name__)
