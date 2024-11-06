@@ -1,6 +1,5 @@
 from flask import Blueprint, request
 from functions.brooksai import brooky
-from utils.constants import StatusCode
 
 brooksai_bp = Blueprint('brooksai', __name__, url_prefix='/brooksai')
 

@@ -48,7 +48,8 @@ class BrookyAPITest(unittest.TestCase):
 
         mock_get_model.assert_called_once()
         mock_model_object.predict.assert_called_once()
-    
+
+
     def test_predict_invalid_payload(self):
         response = self.app.post('/brooksai/predict', data=json.dumps({}), content_type='application/json')
         resp = response.get_json()
@@ -57,7 +58,7 @@ class BrookyAPITest(unittest.TestCase):
         self.assertEqual(resp['error']['code'], ErrorSet.INVALID_INPUT.code)
         self.assertEqual(resp['error']['message'], ErrorSet.INVALID_INPUT.message)
 
-    
+
     @patch('functions.brooksai.brooky._get_model_object')
     def test_predict_model_not_found(self, mock_get_model):
         mock_get_model.return_value = (None, ErrorSet.MODEL_NOT_FOUND, StatusCode.NOT_FOUND)

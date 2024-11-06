@@ -7,7 +7,6 @@ from datetime import datetime
 import numpy as np
 from flask import jsonify, make_response
 
-from google.cloud import storage
 from google.api_core.exceptions import NotFound, Forbidden, Conflict
 
 from stable_baselines3.common.env_util import make_vec_env
@@ -123,6 +122,7 @@ def _get_model_object() -> Tuple[Optional[RecurrentPPOAgent], Optional[ErrorEntr
     blob = bucket.blob(f'{DIRECTORY}/{MODEL_FILE}')
 
     try:
+        start = datetime.now()
         blob.download_to_filename(MODEL_FILE)
         logger.info('Model downloaded successfully')
 
@@ -131,7 +131,8 @@ def _get_model_object() -> Tuple[Optional[RecurrentPPOAgent], Optional[ErrorEntr
         logger.info('Environment loaded successfully')
 
         model = RecurrentPPOAgent.load(MODEL_FILE, env=env)
-        logger.info('Successfully retrieved and setup model')
+        time_taken = (datetime.now() - start).seconds
+        logger.info('Successfully retrieved and setup model in %s seconds', time_taken)
 
         return model, None, StatusCode.OK
 
