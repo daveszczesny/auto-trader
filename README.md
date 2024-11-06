@@ -5,6 +5,7 @@
     - Try `cd drep` and `make help` to get started.
 2. **brooksai**: The home of our little Trader, named after Al Brooks, a famous trader.
 3. **ctrader**: A bot for our broker to link our awesome AI with the harsh reality of the markets.
+4. **brookyapi**: The medium between brooksai and ctrader.
 
 ## Follow the Progress
 [JIRA Link](https://daveszczesny-college.atlassian.net/jira/software/projects/AT/boards/1/backlog)
@@ -33,6 +34,14 @@ make train
 # On Windows
 make train-w
 ```
+
+To get started with **brookyapi**, the source code is under `brookyapi`, however, it links in with `brooksai` and the `root` directory.
+```bash
+# Deploy Cloud Run locally, [NOTE] you will require a .env file to do this. Reach out to code owner for this
+sh local_deploy.sh
+```
+
+More on **brookyapi** under its own README.md
 
 ## Credit
 
