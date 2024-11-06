@@ -2,8 +2,9 @@ import unittest
 
 import numpy as np
 
-from utils.ai.observation import construct_observation
-from utils.ai.exceptions import ErrorSet, StatusCode
+from utils.observation import construct_observation
+from utils.exceptions import ErrorSet
+from utils.constants import StatusCode
 from tests.utils.common import read_json_file
 
 class ObservationTest(unittest.TestCase):

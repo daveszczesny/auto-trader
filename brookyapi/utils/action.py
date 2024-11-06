@@ -4,7 +4,8 @@ from typing import Tuple, Optional, Dict
 import torch
 import numpy as np
 
-from utils.ai.exceptions import ErrorSet, StatusCode
+from utils.exceptions import ErrorSet
+from utils.constants import StatusCode
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger('BrookyAPI')
