@@ -2,6 +2,8 @@ import logging
 import json
 from typing import Optional, Tuple, Dict, Any
 
+from datetime import datetime
+
 import numpy as np
 from flask import jsonify, make_response
 
@@ -14,6 +16,7 @@ from utils import register_env
 from utils.ai.action import construct_action
 from utils.ai.observation import construct_observation
 from utils.ai.exceptions import ErrorEntry, ErrorSet, StatusCode
+from utils.constants import ApplicationConstants
 from brooksai.agent.recurrentppoagent import RecurrentPPOAgent
 
 logging.basicConfig(level=logging.INFO)
@@ -26,6 +29,8 @@ MODEL_FILE = 'ppo_forex.zip'
 model: Optional[RecurrentPPOAgent] = None
 lstm_states: Optional[Tuple[np.ndarray, ...]] = None
 episode_start: Optional[np.ndarray] = None
+
+episode_start_time: Optional[datetime] = None
 
 def predict(request):
     logger.info('Processing prediction request')
@@ -146,11 +151,32 @@ def _get_model_object() -> Tuple[Optional[RecurrentPPOAgent], Optional[ErrorEntr
 
 def _get_instances() -> Tuple[Tuple[np.ndarray], bool, Optional[ErrorEntry], int]:
     """
-    Method to retrieve lstm states and episode start from GCS.
-    Returns: Tuple of lstm states, episode start and error message
+    Retrieves LSTM states and episode start from Google Cloud Storage (GCS).
+
+    The episode start flag indicates the beginning of a new episode for the model and must be tracked.
+    The model expects a request every minute but allows for some tolerance defined by EPISODE_TIME_OUT.
+
+    Returns: A tuple containing LSTM states, episode start flag, error message, and status code.
     """
 
-    global lstm_states, episode_start
+    global lstm_states, episode_start, episode_start_time
+
+    if episode_start_time is None or \
+        (datetime.now() - episode_start_time).seconds > ApplicationConstants.EPISODE_TIME_OUT:
+
+        """
+        When a time out occurs, reset the episode start flag, and lstm states
+        Set the episode start time to the current time
+        """
+
+        logger.info('Episode timed out or not started, resetting episode start')
+        episode_start = False
+        episode_start_time = datetime.now()
+
+        # Reset LSTM states
+        lstm_states = None
+        return lstm_states, episode_start, None, StatusCode.OK
+
     if lstm_states is not None and episode_start is not None:
         logger.info('Retrieve instances from previous request')
         return lstm_states, episode_start, None, StatusCode.OK
