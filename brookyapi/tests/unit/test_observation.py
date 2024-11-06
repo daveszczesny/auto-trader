@@ -41,9 +41,9 @@ class ObservationTest(unittest.TestCase):
         self.assertEqual(status_code, StatusCode.BAD_REQUEST)
         self.assertIsNone(observation)
 
-    
+
     def test_valid_observation_list(self):
-        
+
         payload = read_json_file('brookyapi/tests/data/sample_warmup_payload.json')
 
         observation_list, err, status_code = get_observation_list(payload)
