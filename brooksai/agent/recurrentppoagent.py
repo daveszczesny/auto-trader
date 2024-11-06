@@ -20,26 +20,36 @@ class RecurrentPPOAgent:
     Controls hyperparameters and model architecture for the RecurrentPPO model.
     """
 
-    def __init__(self, env: gym.Env | Any, log_dir: str = 'runs/ppo_recurrent'):
+    def __init__(self,
+        env: gym.Env | Any,
+        log_dir: str = 'runs/ppo_recurrent',
+        lstm_hidden_size: int = 256,
+        n_nstm_layers: int = 2,
+        batch_size: int = 256,
+        gamma: float = 0.94,
+        learning_rate: float = 3e-4,
+        gae_lambda: float = 0.9,
+        ent_coef: float = 0.06,
+        sde_sample_freq: int = 16):
         self.env = Monitor(env)
         self.model = RecurrentPPO(
             "MlpLstmPolicy",
             env,
             verbose=1,
             n_steps=2048,
-            batch_size=256, # larger number reduces variance in learning?
+            batch_size=batch_size, # larger number reduces variance in learning?
             n_epochs=10,
-            gamma=0.94, # encourages more immediate rewards
-            learning_rate=3e-4,
+            gamma=gamma, # encourages more immediate rewards
+            learning_rate=learning_rate,
             clip_range=0.2,
-            gae_lambda=0.9,
-            ent_coef=0.06, # entropy coefficient
+            gae_lambda=gae_lambda,
+            ent_coef=ent_coef, # entropy coefficient
             vf_coef=0.5,
             max_grad_norm=0.5, # gradient clipping
             use_sde=True,
-            sde_sample_freq=16, # encourages exploration
+            sde_sample_freq=sde_sample_freq, # encourages exploration
             normalize_advantage=True,
-            policy_kwargs={"lstm_hidden_size":256, "n_lstm_layers": 2},
+            policy_kwargs={"lstm_hidden_size": lstm_hidden_size, "n_lstm_layers": n_nstm_layers},
             tensorboard_log=log_dir
             )
 

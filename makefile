@@ -18,6 +18,9 @@ clean-venv:
 train:
 	PYTHONPATH=${shell pwd} venv/bin/python brooksai/train_agent.py
 
+tune:
+	PYTHONPATH=${shell pwd} venv/bin/python brooksai/tuner.py
+
 lint:
 	venv/bin/pylint --fail-under=9 brooksai
 	venv/bin/pylint --fail-under=9 brookyapi
