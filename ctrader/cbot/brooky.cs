@@ -21,6 +21,7 @@ namespace cAlgo.Robots
         private ExponentialMovingAverage ema200;
         
         private readonly HttpClient httpClient = new();
+        private readonly string BASE_URL = "https://brooky-api-550951781970.europe-west2.run.app";
 
         protected override void OnStart()
         {
@@ -103,7 +104,7 @@ namespace cAlgo.Robots
         {
             try
             {
-                var API = "https://brooky-api-550951781970.europe-west2.run.app/brooksai/predict";
+                var API = BASE_URL + "/brooksai/predict";
                 var content = new StringContent(jsonData, Encoding.UTF8, "application/json");
                 HttpResponseMessage response = await httpClient.PostAsync(API, content);
 
@@ -128,7 +129,7 @@ namespace cAlgo.Robots
         {
             try
             {
-                var API = "https://brooky-api-550951781970.europe-west2.run.app/brooksai/warmup";
+                var API = BASE_URL + "/brooksai/warmup";
                 var content = new StringContent(jsonData, Encoding.UTF8, "application/json");
                 HttpResponseMessage response = await httpClient.PostAsync(API, content);
 
