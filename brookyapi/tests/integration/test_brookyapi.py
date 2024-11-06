@@ -16,7 +16,7 @@ class BrookyAPITest(unittest.TestCase):
         self.app = app.test_client()
         self.app.testing = True
 
-    @patch('functions.brooksai.brooky.storage.Client')
+    @patch('utils.common.storage.Client')
     @patch('functions.brooksai.brooky._get_model_object')
     def test_predict(self, mock_get_model, mock_storage_client):
 
@@ -73,7 +73,7 @@ class BrookyAPITest(unittest.TestCase):
         self.assertEqual(resp['error']['message'], ErrorSet.MODEL_NOT_FOUND.message)
 
     @patch('functions.brooksai.brooky.RecurrentPPOAgent')
-    @patch('functions.brooksai.brooky.storage.Client')
+    @patch('utils.common.storage.Client')
     def test_ppo_agent_failure(self, mock_agent, mock_storage_client):
         mock_client = MagicMock()
         mock_storage_client.return_value = mock_client
