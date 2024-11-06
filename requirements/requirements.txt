@@ -6,3 +6,6 @@ numpy
 dask
 dask[dataframe]
 sb3-contrib
+torch
+torchvision
+tensorboard
