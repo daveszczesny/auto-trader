@@ -8,3 +8,4 @@ resources/
 runs/
 
 !requirements.txt
+!requirements_test.txt
