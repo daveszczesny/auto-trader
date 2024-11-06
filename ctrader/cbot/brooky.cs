@@ -29,6 +29,40 @@ namespace cAlgo.Robots
             ema21 = Indicators.ExponentialMovingAverage(Bars.ClosePrices, 21);
             ema50 = Indicators.ExponentialMovingAverage(Bars.ClosePrices, 50);
             ema200 = Indicators.ExponentialMovingAverage(Bars.ClosePrices, 200);
+            
+            int warmUpPeriod = 200;
+            var closePrices = new double[warmUpPeriod];
+            var highPrices = new double[warmUpPeriod];
+            var lowPrices = new double[warmUpPeriod];
+            var ema21Values = new double[warmUpPeriod];
+            var ema50Values = new double[warmUpPeriod];
+            var ema200Values = new double[warmUpPeriod];
+
+
+            for (int i = 0; i < warmUpPeriod; i++)
+            {
+                int index = Bars.Count - 1 - i;
+                closePrices[i] = Bars.ClosePrices[index];
+                highPrices[i] = Bars.HighPrices[index];
+                lowPrices[i] = Bars.LowPrices[index];
+                ema21Values[i] = ema21.Result[index];
+                ema50Values[i] = ema50.Result[index];
+                ema200Values[i] = ema200.Result[index];
+            }
+
+            var payload = new 
+            {
+                closePrices = closePrices,
+                highPrices = highPrices,
+                lowPrices = lowPrices,
+                ema21 = ema21Values,
+                ema50 = ema50Values,
+                ema200 = ema200Values
+            }
+
+            string jsonData = JsonSerializer.Serialize(payload);
+            SendPostRequestToWarmUp(jsonData);
+
         }
 
         protected override void OnBar()
@@ -69,7 +103,7 @@ namespace cAlgo.Robots
         {
             try
             {
-                var API = "https://brooky-api-550951781970.europe-west2.run.app/brooksai";
+                var API = "https://brooky-api-550951781970.europe-west2.run.app/brooksai/predict";
                 var content = new StringContent(jsonData, Encoding.UTF8, "application/json");
                 HttpResponseMessage response = await httpClient.PostAsync(API, content);
 
@@ -86,6 +120,26 @@ namespace cAlgo.Robots
                 }
             }catch(Exception e){
                 Console.WriteLine(e);
+            }
+        }
+
+
+        private async void SendPostRequestToWarmUp(string jsonData)
+        {
+            try
+            {
+                var API = "https://brooky-api-550951781970.europe-west2.run.app/brooksai/warmup";
+                var content = new StringContent(jsonData, Encoding.UTF8, "application/json");
+                HttpResponseMessage response = await httpClient.PostAsync(API, content);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    Print("Data sent successfully");
+                }
+                else
+                {
+                    Print("Failed to send data");
+                }
             }
         }
 
