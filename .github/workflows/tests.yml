@@ -23,6 +23,9 @@ jobs:
     - name: Run unit tests
       run: |
         make test-unit
+    - name: Run integration tests
+      run: |
+        make test-integration
     - name: Clean up
       run: |
         make clean-venv

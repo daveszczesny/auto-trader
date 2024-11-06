@@ -3,12 +3,10 @@
 setup-venv:
 	rm -rf venv
 	python3.10 -m venv venv
-	sh venv/bin/activate
+	. venv/bin/activate
 	venv/bin/pip install -r requirements/requirements.txt
 	venv/bin/pip install git+https://github.com/DLR-RM/stable-baselines3
-	venv/bin/pip install pylint
-	venv/bin/pip install pytest
-	venv/bin/pip install torch torchvision tensorboard
+	venv/bin/pip install -r requirements/requirements_test.txt
 
 	venv/bin/pip install -r brookyapi/requirements.txt
 
@@ -27,19 +25,18 @@ test-unit:
 	PYTHONPATH=${shell pwd} venv/bin/pytest brooksai/tests/unit
 	PYTHONPATH=${shell pwd} venv/bin/pytest brookyapi/tests/unit
 
-# Commands for TradeVis
-setup-venv-tradevis:
-	rm -rf tradevis/venv
-	python3 -m venv tradevis/venv
-	sh tradevis/venv/bin/activate
-	tradevis/venv/bin/pip install -r requirements/requirements-tradevis.txt
+test-integration:
+	PYTHONPATH=${shell pwd} venv/bin/pytest brookyapi/tests/integration
+
+test:
+	PYTHONPATH=${shell pwd} venv/bin/pytest brooksai/tests/
+	PYTHONPATH=${shell pwd} venv/bin/pytest brookyapi/tests/
 
 run-tradevis:
 	PYTHONPATH=${shell pwd} tradevis/venv/bin/python tradevis/main.py
 
 
 # Windows Commands
-
 setup-venv-w:
 	rmdir /s /q venv
 	python -m venv venv
@@ -62,3 +59,11 @@ lint-w:
 
 test-unit-w:
 	set PYTHONPATH=%cd% && venv\Scripts\pytest brooksai\tests\unit
+	set PYTHONPATH=%cd% && venv\Scripts\pytest brookyapi\tests\unit
+
+test-integration-w:
+	set PYTHONPATH=%cd% && venv\Scripts\pytest brookypi\tests\integration
+
+
+test-w:
+	set PYTHONPATH=%cd% && venv\Scripts\pytest brooksai\tests
