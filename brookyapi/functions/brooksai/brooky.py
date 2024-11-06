@@ -14,7 +14,7 @@ from stable_baselines3.common.env_util import make_vec_env
 
 from utils.env import register_env
 from utils.action import construct_action
-from utils.observation import get_observation, process_observation_list
+from utils.observation import get_observation, get_observation_list
 from utils.exceptions import ErrorEntry, ErrorSet
 from utils.constants import ApplicationConstants, StatusCode
 from utils.common import get_bucket, handle_error
@@ -35,7 +35,7 @@ episode_start_time: Optional[datetime] = None
 
 def predict(request):
     logger.info('Processing prediction request')
-
+    global lstm_states, episode_start
     if lstm_states is None or episode_start is True:
         logger.warning('Model not warmed up, please call warmup endpoint first [POST /brooksai/warmup]')
 
@@ -231,7 +231,7 @@ def warmup(request):
         payload = request.get_json()
         logger.debug(f'Received data: {payload}')
 
-        observation_list, err, status_code = process_observation_list(payload)
+        observation_list, err, status_code = get_observation_list(payload)
         if err or status_code != StatusCode.OK:
             return handle_error(err, status_code)
 

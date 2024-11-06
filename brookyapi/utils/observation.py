@@ -78,7 +78,7 @@ def get_observation(payload: Dict[str, Any]) -> Tuple[Optional[np.ndarray], Opti
 
 
 
-def process_observation_list(payload: Dict[str, Any]):
+def get_observation_list(payload: Dict[str, Any]):
 
     logger.info('Processing observation list')
     balance = payload.get('balance', None)
@@ -104,7 +104,11 @@ def process_observation_list(payload: Dict[str, Any]):
         logger.error(f'Expected indicators not found in payload: {repr(indicator_values)}')
         return None, ErrorSet.INVALID_INPUT, StatusCode.BAD_REQUEST
 
-    if len(prices) != len(highs) != len(prices) != len(lows) != len(ema_200) != len(ema_50) != len(ema_21):
+    if len(prices) != len(highs) or \
+        len(prices) != len(lows) or \
+        len(prices) != len(ema_200) or \
+        len(prices) != len(ema_50) or \
+        len(prices) != len(ema_21):
         logger.error(f'Invalid input: Length of prices "{len(prices)}'
                      f'highs "{len(highs)}", lows "{len(lows)}" '
                      f'ema200 "{len(ema_200)}", ema50 "{len(ema_50)}" and'
