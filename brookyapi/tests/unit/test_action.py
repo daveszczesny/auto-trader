@@ -1,8 +1,8 @@
 import unittest
 import numpy as np
 
-from utils.ai.exceptions import StatusCode
-from utils.ai.action import construct_action
+from utils.constants import StatusCode
+from utils.action import construct_action
 
 class ActionTest(unittest.TestCase):
 

@@ -2,20 +2,17 @@ import os
 import logging
 
 from flask import Flask, request
-from functions import brooky
+from endpoints.brooksai import brooksai_bp
 
 app = Flask(__name__)
+
+app.register_blueprint(brooksai_bp)
 
 logging.basicConfig(level=logging.INFO)
 
 @app.route('/')
 def default_func():
     return 'Welcome to Brooky API!'
-
-
-@app.route('/brooksai', methods=['POST'])
-def brooksai_predict():
-    return brooky.predict(request)
 
 
 if __name__ == "__main__":
