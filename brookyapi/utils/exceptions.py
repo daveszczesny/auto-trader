@@ -49,6 +49,11 @@ class ErrorSet:
         message='Failed to download or update instances due to conflict error'
     )
 
+    MODEL_NOT_WARMED_UP = ErrorEntry(
+        code='model.not.warmed.up',
+        message='Model has not been warmed up. Call warmup endpoint first'
+    )
+
     UNKNOWN_ERROR = ErrorEntry(
         code='unknown.error',
         message='Unknown error occurred'

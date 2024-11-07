@@ -28,6 +28,9 @@ test-unit:
 test-integration:
 	PYTHONPATH=${shell pwd} venv/bin/pytest brookyapi/tests/integration
 
+test-e2e:
+	PYTHONPATH=${shell pwd} venv/bin/pytest brookyapi/tests/e2e
+
 test:
 	PYTHONPATH=${shell pwd} venv/bin/pytest brooksai/tests/
 	PYTHONPATH=${shell pwd} venv/bin/pytest brookyapi/tests/
@@ -64,6 +67,8 @@ test-unit-w:
 test-integration-w:
 	set PYTHONPATH=%cd% && venv\Scripts\pytest brookypi\tests\integration
 
+test-e2e-w:
+	set PYTHONPATH=%cd% && venv\Scripts\pytest brookyapi\tests\e2e
 
 test-w:
 	set PYTHONPATH=%cd% && venv\Scripts\pytest brooksai\tests
