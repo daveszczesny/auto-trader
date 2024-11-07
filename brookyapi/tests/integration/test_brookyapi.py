@@ -18,7 +18,9 @@ class BrookyAPITest(unittest.TestCase):
 
     @patch('utils.common.storage.Client')
     @patch('functions.brooksai.brooky._get_model_object')
-    def test_predict(self, mock_get_model, mock_storage_client):
+    @patch('functions.brooksai.brooky.episode_start')
+    @patch('functions.brooksai.brooky.lstm_states')
+    def test_predict(self, mock_lstm_states, mock_episode, mock_get_model, mock_storage_client):
 
         mock_client = MagicMock()
         mock_storage_client.return_value = mock_client
@@ -37,6 +39,9 @@ class BrookyAPITest(unittest.TestCase):
 
         mock_get_model.return_value = (mock_model_object, None, StatusCode.OK)
 
+        mock_episode.return_value = False
+        mock_lstm_states.return_value = np.array([0.0, 0.0, 0.0, 0.0])
+
         payload = read_json_file('brookyapi/tests/data/sample_payload.json')
 
         response = self.app.post('/brooksai/predict', data=json.dumps(payload), content_type='application/json')
@@ -50,7 +55,13 @@ class BrookyAPITest(unittest.TestCase):
         mock_model_object.predict.assert_called_once()
 
 
-    def test_predict_invalid_payload(self):
+    @patch('functions.brooksai.brooky.episode_start')
+    @patch('functions.brooksai.brooky.lstm_states')
+    def test_predict_invalid_payload(self, mock_lstm_states, mock_episode):
+
+        mock_episode.return_value = False
+        mock_lstm_states.return_value = np.array([0.0, 0.0, 0.0, 0.0])
+
         response = self.app.post('/brooksai/predict', data=json.dumps({}), content_type='application/json')
         resp = response.get_json()
 
@@ -60,8 +71,13 @@ class BrookyAPITest(unittest.TestCase):
 
 
     @patch('functions.brooksai.brooky._get_model_object')
-    def test_predict_model_not_found(self, mock_get_model):
+    @patch('functions.brooksai.brooky.episode_start')
+    @patch('functions.brooksai.brooky.lstm_states')
+    def test_predict_model_not_found(self, mock_lstm_states, mock_episode, mock_get_model):
         mock_get_model.return_value = (None, ErrorSet.MODEL_NOT_FOUND, StatusCode.NOT_FOUND)
+
+        mock_episode.return_value = False
+        mock_lstm_states.return_value = np.array([0.0, 0.0, 0.0, 0.0])
 
         payload = read_json_file('brookyapi/tests/data/sample_payload.json')
 
@@ -74,7 +90,9 @@ class BrookyAPITest(unittest.TestCase):
 
     @patch('functions.brooksai.brooky.RecurrentPPOAgent')
     @patch('utils.common.storage.Client')
-    def test_ppo_agent_failure(self, mock_agent, mock_storage_client):
+    @patch('functions.brooksai.brooky.episode_start')
+    @patch('functions.brooksai.brooky.lstm_states')
+    def test_ppo_agent_failure(self, mock_lstm_states, mock_episode, mock_agent, mock_storage_client):
         mock_client = MagicMock()
         mock_storage_client.return_value = mock_client
 
@@ -88,6 +106,9 @@ class BrookyAPITest(unittest.TestCase):
         mock_blob.upload_from_string.return_value = MagicMock()
 
         mock_agent.side_effect = Exception('Failed to load agent')
+
+        mock_episode.return_value = False
+        mock_lstm_states.return_value = np.array([0.0, 0.0, 0.0, 0.0])
 
         payload = read_json_file('brookyapi/tests/data/sample_payload.json')
         response = self.app.post('/brooksai/predict', data=json.dumps(payload), content_type='application/json')

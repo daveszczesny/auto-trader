@@ -34,9 +34,11 @@ episode_start_time: Optional[datetime] = None
 
 def predict(request):
     logger.info('Processing prediction request')
-    global lstm_states, episode_start
+    global lstm_states, episode_start, episode_start_time
     if lstm_states is None or episode_start is True:
-        logger.warning('Model not warmed up, please call warmup endpoint first [POST /brooksai/warmup]')
+        logger.warning('Model not warmed up, Warmup endpoint must be called first [POST /brooksai/warmup]')
+
+        return handle_error(ErrorSet.MODEL_NOT_WARMED_UP, StatusCode.SERVICE_UNAVAILABLE)
 
     try:
         payload = request.get_json()
@@ -66,6 +68,7 @@ def predict(request):
         if err or status_code != StatusCode.OK:
             return handle_error(err, status_code)
 
+        episode_start_time = datetime.now() # Reset the episode start time
         response = jsonify(action)
         return make_response(response, StatusCode.OK)
 
