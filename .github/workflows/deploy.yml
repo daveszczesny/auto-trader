@@ -36,6 +36,7 @@ jobs:
 
   e2e-tests:
     runs-on: ubuntu-latest
+    needs: build-and-deploy
     strategy:
       matrix:
         python-version: ["3.10"]
