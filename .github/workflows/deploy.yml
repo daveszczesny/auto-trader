@@ -53,7 +53,7 @@ jobs:
       run: |
         make setup-venv
 
-    - name: Run e2e tests:
+    - name: Run e2e tests
       run: |
         make tests-e2e
 
