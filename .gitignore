@@ -6,5 +6,7 @@ resources/
 /logs/
 .DS_Store
 runs/
+.env
 
 !requirements.txt
+!requirements_test.txt

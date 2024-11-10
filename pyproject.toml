@@ -1,3 +1,9 @@
+[project]
+name = 'auto-trader'
+version = "1.0"
+authors = [{name = "Dave Szczesny", email = "d.szczesny1@universityofgalway.ie"}]
+requires-python = ">=3.10"
+
 [tool.pytest.ini_options]
 pythonpath = [
     ".",

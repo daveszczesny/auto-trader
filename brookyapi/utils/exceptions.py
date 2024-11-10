@@ -49,20 +49,12 @@ class ErrorSet:
         message='Failed to download or update instances due to conflict error'
     )
 
+    MODEL_NOT_WARMED_UP = ErrorEntry(
+        code='model.not.warmed.up',
+        message='Model has not been warmed up. Call warmup endpoint first'
+    )
+
     UNKNOWN_ERROR = ErrorEntry(
         code='unknown.error',
         message='Unknown error occurred'
     )
-
-
-class StatusCode:
-    OK = 200
-    ACCEPTED = 202
-
-    BAD_REQUEST = 400
-    UNAUTHORIZED = 401
-    FORBIDDEN = 403
-    NOT_FOUND = 404
-    CONFLICT = 409
-
-    INTERNAL_SERVER_ERROR = 500
