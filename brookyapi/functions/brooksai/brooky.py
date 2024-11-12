@@ -56,7 +56,10 @@ def predict(request):
         if err or status_code != StatusCode.OK:
             return handle_error(err, status_code)
 
-        action, lstm_states = model.predict(observation, lstm_states, episode_starts=episode_start)
+        action, lstm_states = model.predict(observation,
+                                            state=lstm_states,
+                                            episode_starts=episode_start,
+                                            deterministic=True)
 
         action, err, status_code = construct_action(action)
         if err or status_code != StatusCode.ACCEPTED:
@@ -251,7 +254,10 @@ def warmup(request):
 
         for observation in observation_list:
             # We are ignoring the action here
-            _, lstm_states = model.predict(observation, lstm_states, episode_starts=episode_start)
+            _, lstm_states = model.predict(observation,
+                                           state=lstm_states,
+                                           episode_starts=episode_start,
+                                           deterministic=True)
             episode_start = False
 
         logger.info('Warmup process completed')

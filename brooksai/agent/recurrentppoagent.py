@@ -69,20 +69,39 @@ class RecurrentPPOAgent:
         self.model.learn(total_timesteps, tb_log_name="ppo_recurrent", callback=callback)
 
 
-    def predict(self, observation, lstm_states, episode_starts):
+    def predict(self, observation=None, **kwargs):
         """
         Predict an action given an observation and LSTM states.
-        :param observation: The observation to predict an action for.
-        :param lstm_states: The LSTM states to use for prediction.
-        :param episode_starts: A boolean array indicating whether each episode has started.
-        :return: The raw action predicted by the model.
+
+        If deterministic is True, the model will return the action with the highest probability,
+        otherwise it will sample an action from the probability distribution.
+        For training purposes, deterministic should be False,
+        and for evaluation (production) deterministic should be True.
+
+        :param observation: The observation to predict an action for. If None, it will be retrieved from kwargs.
+        :param lstm_states: The LSTM states to use for prediction. Retrieved from kwargs if not provided.
+        :param episode_starts: A boolean array indicating whether each episode has started. Retrieved from kwargs if not provided.
+        :param deterministic: Whether to use deterministic or stochastic actions. Default is False.
+        :return: A tuple containing the raw action predicted by the model and the updated LSTM states.
+        :raises ValueError: If observation or episode_starts are not provided.
         """
+
+
+        if observation is None:
+            observation = kwargs.get('observation')
+
+        lstm_states = kwargs.get('lstm_states') or kwargs.get('state')
+        episode_starts = kwargs.get('episode_starts') or kwargs.get('episode_start')
+        deterministic = kwargs.get('deterministic', False)
+
+        if observation is None or episode_starts is None:
+            raise ValueError("observation and episode_starts must be provided.")
 
         raw_action, lstm_states = self.model.predict(
             observation,
             lstm_states,
             episode_starts,
-            deterministic=True
+            deterministic=deterministic
         )
 
         return raw_action, lstm_states
