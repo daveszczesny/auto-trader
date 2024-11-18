@@ -1,0 +1,27 @@
+{
+    "balance": 1000.0,
+    "unrealized_pnl": 1030000,
+    "current_prices": [
+        2, 3, 4, 5
+    ],
+    "current_highs": [
+        3, 4, 5, 6
+    ],
+    "current_lows": [
+        1,2,3,4
+    ],
+    "indicators": [
+        {
+            "name": "ema_200",
+            "value": [ 1, 2, 3, 4]
+        },
+        {
+            "name": "ema_50",
+            "value": [1, 2, 3, 4]
+        },
+        {
+            "name": "ema_21",
+            "value": [1, 2, 3, 4]
+        }
+    ]
+}
