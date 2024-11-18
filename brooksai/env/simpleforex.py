@@ -1,3 +1,13 @@
+"""
+@article{towers2024gymnasium,
+  title={Gymnasium: A Standard Interface for Reinforcement Learning Environments},
+  author={Towers, Mark and Kwiatkowski, Ariel and Terry, Jordan and Balis, John U and De Cola, Gianluca and Deleu, Tristan and Goul{\~a}o, Manuel and Kallinteris, Andreas and Krimmel, Markus and KG, Arjun and others},
+  journal={arXiv preprint arXiv:2407.17032},
+  year={2024}
+}
+"""
+
+
 from typing import Tuple, Optional, Dict, Any
 
 import dask.dataframe as dd
@@ -34,6 +44,7 @@ agent_improvement_metric = {
 }
 
 
+
 # pylint: disable=too-many-instance-attributes
 class SimpleForexEnv(gym.Env):
     """
@@ -45,18 +56,22 @@ class SimpleForexEnv(gym.Env):
     """
 
     def __init__(self,
-                 data: str,
+                 data: str | dd.DataFrame,
                  initial_balance: float = ApplicationConstants.INITIAL_BALANCE,
-                 render_mode: Optional[str] = None):
+                 render_mode: Optional[str] = None,
+                 split: bool = False) -> None:
 
-        self.data = dd.read_csv(data)
-        self.data = self.data.select_dtypes(include=[float, int])
-        self.data = self.data.to_dask_array(lengths=True)
-        self.data = self.data.compute()
-        self.data = torch.tensor(self.data, dtype=torch.float32, device=ApplicationConstants.DEVICE)
+        if split:
+            self.data = data
+        else:
+            self.data = dd.read_csv(data)
+            self.data = self.data.select_dtypes(include=[float, int])
+            self.data = self.data.to_dask_array(lengths=True)
+            self.data = self.data.compute()
+            self.data = torch.tensor(self.data, dtype=torch.float32, device=ApplicationConstants.DEVICE)
 
         # Environment variables
-        self.n_steps = len(self.data)
+        self.n_steps = len(self.data) # number of steps in the dataset
         self.render_mode = render_mode
 
         # Observation space
@@ -78,6 +93,9 @@ class SimpleForexEnv(gym.Env):
             dtype=np.float32
         )
 
+        # Possible starting point is 80% of the total steps.
+        # The agent will start at a random point within this range
+        self._possible_starting_steps: int = int(self.n_steps * 0.8)
         self.current_step: int = 0
 
         self._update_current_state()
@@ -97,16 +115,25 @@ class SimpleForexEnv(gym.Env):
         Update the current state of the environment
             including current price, high, low, and EMAs
         """
+
+        # Data mapping
+        HIGH_PRICE = 1 # bid_high
+        LOW_PRICE = 2 # bid_low
+        CLOSE_PRICE = 3 # bid_close
+        EMA_21_PRICE = 4 # EMA 21
+        EMA_50_PRICE = 5 # EMA 50
+        EMA_200_PRICE = 6 # EMA 200
+
         if torch.cuda.is_available() and not self.data.is_cuda:
             self.data = self.data.cuda()
 
-        self.current_price: float = float(self.data[self.current_step, 6].item())
-        self.current_high: float = float(self.data[self.current_step, 5].item())
-        self.current_low: float = float(self.data[self.current_step, 4].item())
+        self.current_price: float = float(self.data[self.current_step, CLOSE_PRICE].item())
+        self.current_high: float = float(self.data[self.current_step, HIGH_PRICE].item())
+        self.current_low: float = float(self.data[self.current_step, LOW_PRICE].item())
         self.current_emas: Tuple[float, float, float] = (
-            float(self.data[self.current_step, 10].item()),
-            float(self.data[self.current_step, 11].item()),
-            float(self.data[self.current_step, 12].item())
+            float(self.data[self.current_step, EMA_21_PRICE].item()),
+            float(self.data[self.current_step, EMA_50_PRICE].item()),
+            float(self.data[self.current_step, EMA_200_PRICE].item())
         )
 
     def step(self, action: np.ndarray) -> Tuple[torch.Tensor, float, bool, bool, dict]:
@@ -258,9 +285,9 @@ class SimpleForexEnv(gym.Env):
         2. Trade window is negative
         """
         self.done = bool(
-            self.initial_balance * 0.75 >= self.current_balance -
-            abs(self.unrealised_pnl if self.unrealised_pnl < 0 else 0)
-            or self.trade_window < 0
+            self.initial_balance * 0.5 >= self.current_balance -
+            abs(self.unrealised_pnl if self.unrealised_pnl < 0 else 0) or
+            self.current_step >= self.n_steps - 1
         )
 
         # If the episode is done, close all trades
@@ -269,8 +296,11 @@ class SimpleForexEnv(gym.Env):
         if self.done:
             self.current_balance += close_all_trades(self.current_price)
 
-            if self.trade_window < 0:
-                self.reward -= 0.2
+            if self.trade_window < 0 and ActionApply.get_action_tracker('trades_opened') <= 0:
+                self.reward -= 1000
+            
+            if self.current_balance > self.initial_balance:
+                self.reward += 100
 
             average_win = float(
                 ActionApply.get_action_tracker('total_won')) / float(ActionApply.get_action_tracker('trades_closed')

@@ -1,3 +1,15 @@
+"""
+@article{stable-baselines3,
+  author  = {Antonin Raffin and Ashley Hill and Adam Gleave and Anssi Kanervisto and Maximilian Ernestus and Noah Dormann},
+  title   = {Stable-Baselines3: Reliable Reinforcement Learning Implementations},
+  journal = {Journal of Machine Learning Research},
+  year    = {2021},
+  volume  = {22},
+  number  = {268},
+  pages   = {1-8},
+  url     = {http://jmlr.org/papers/v22/20-1364.html}
+}
+"""
 
 try:
     import gymnasium as gym
@@ -5,6 +17,8 @@ except Exception as _:
     pass
 
 from typing import Any
+
+import numpy as np
 
 from sb3_contrib import RecurrentPPO
 from stable_baselines3.common.callbacks import CheckpointCallback, CallbackList
@@ -31,6 +45,9 @@ class RecurrentPPOAgent:
         gae_lambda: float = 0.9,
         ent_coef: float = 0.06,
         sde_sample_freq: int = 16):
+        
+        self.seed = np.random.seed(42)
+
         self.env = Monitor(env)
         self.model = RecurrentPPO(
             "MlpLstmPolicy",
@@ -50,7 +67,8 @@ class RecurrentPPOAgent:
             sde_sample_freq=sde_sample_freq, # encourages exploration
             normalize_advantage=True,
             policy_kwargs={"lstm_hidden_size": lstm_hidden_size, "n_lstm_layers": n_nstm_layers},
-            tensorboard_log=log_dir
+            tensorboard_log=log_dir,
+            seed=self.seed
             )
 
         self.num_envs = 1

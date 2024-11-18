@@ -35,8 +35,8 @@ action_type_mapping = {
 
 class ApplicationConstants:
     INITIAL_BALANCE = 1_000
-    DEFAULT_TRADE_TTL = 5_760 # 4 days
-    DEFAULT_TRADE_WINDOW = 4_320 # 3 day
+    DEFAULT_TRADE_TTL = 7_200 # 5 days
+    DEFAULT_TRADE_WINDOW = 7_200 # 5 day
     CONTRACT_SIZE = 100_000
     LEVERAGE = 500
     TRANSACTION_FEE = 2.54

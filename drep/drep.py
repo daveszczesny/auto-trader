@@ -1,3 +1,9 @@
+"""
+“Forex Historical Data Feed :: Dukascopy Bank SA.” Dukascopy Bank SA, 2024, www.dukascopy.com/swiss/english/fx-market-tools/historical-data/
+"""
+
+
+
 import argparse
 import os
 import shutil
