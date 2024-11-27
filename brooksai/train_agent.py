@@ -1,4 +1,10 @@
 import os
+import sys
+
+
+# change recursion limit to max
+sys.setrecursionlimit(10**6)
+
 import logging
 import time
 
@@ -15,7 +21,7 @@ from brooksai.env.scripts import register_env
 MODEL_PATH = "ppo_forex.zip"
 SAVE_FREQ  = 100_000
 CYCLES = 1_000
-PARTITIONS = 150
+PARTITIONS = 50
 
 logging.basicConfig(level=logging.INFO, format='%(name)s - %(message)s')
 logger = logging.getLogger('AutoTrader')

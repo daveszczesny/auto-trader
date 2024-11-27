@@ -117,12 +117,12 @@ class SimpleForexEnv(gym.Env):
         """
 
         # Data mapping
-        HIGH_PRICE = 1 # bid_high
-        LOW_PRICE = 2 # bid_low
-        CLOSE_PRICE = 3 # bid_close
-        EMA_21_PRICE = 4 # EMA 21
-        EMA_50_PRICE = 5 # EMA 50
-        EMA_200_PRICE = 6 # EMA 200
+        HIGH_PRICE = 0 # bid_high
+        LOW_PRICE = 1 # bid_low
+        CLOSE_PRICE = 2 # bid_close
+        EMA_21_PRICE = 3 # EMA 21
+        EMA_50_PRICE = 4 # EMA 50
+        EMA_200_PRICE = 5 # EMA 200
 
         if torch.cuda.is_available() and not self.data.is_cuda:
             self.data = self.data.cuda()

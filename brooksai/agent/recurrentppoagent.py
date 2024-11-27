@@ -37,13 +37,13 @@ class RecurrentPPOAgent:
     def __init__(self,
         env: gym.Env | Any,
         log_dir: str = 'runs/ppo_recurrent',
-        lstm_hidden_size: int = 256,
+        lstm_hidden_size: int = 512,
         n_nstm_layers: int = 2,
-        batch_size: int = 256,
-        gamma: float = 0.94,
-        learning_rate: float = 3e-4,
-        gae_lambda: float = 0.9,
-        ent_coef: float = 0.06,
+        batch_size: int = 1024,
+        gamma: float = 0.95,
+        learning_rate: float = 1e-4,
+        gae_lambda: float = 0.95,
+        ent_coef: float = 0.5,
         sde_sample_freq: int = 16):
         
         self.seed = np.random.seed(42)
@@ -53,7 +53,7 @@ class RecurrentPPOAgent:
             "MlpLstmPolicy",
             env,
             verbose=1,
-            n_steps=2048,
+            n_steps=1024,
             batch_size=batch_size, # larger number reduces variance in learning?
             n_epochs=10,
             gamma=gamma, # encourages more immediate rewards

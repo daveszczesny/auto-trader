@@ -21,7 +21,7 @@ class Punishment:
 
 class Reward:
     TRADE_CLOSED_IN_PROFIT = 0.5
-    TRADE_OPENED = 0.3
+    TRADE_OPENED = 0.8
     TRADE_CLOSED_WITHIN_TTL = 0.1
     CLOSE_TRADE = 0.2
     AGENT_IMPROVED = 0.4
@@ -36,7 +36,7 @@ action_type_mapping = {
 class ApplicationConstants:
     INITIAL_BALANCE = 1_000
     DEFAULT_TRADE_TTL = 7_200 # 5 days
-    DEFAULT_TRADE_WINDOW = 7_200 # 5 day
+    DEFAULT_TRADE_WINDOW = 5_760 # 5 day
     CONTRACT_SIZE = 100_000
     LEVERAGE = 500
     TRANSACTION_FEE = 2.54
