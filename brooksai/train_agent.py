@@ -1,4 +1,10 @@
 import os
+import sys
+
+
+# change recursion limit to max
+sys.setrecursionlimit(10**6)
+
 import logging
 import time
 
