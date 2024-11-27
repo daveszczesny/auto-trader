@@ -45,7 +45,7 @@ class RecurrentPPOAgent:
         gae_lambda: float = 0.9,
         ent_coef: float = 0.06,
         sde_sample_freq: int = 16):
-        
+
         self.seed = np.random.seed(42)
 
         self.env = Monitor(env)
