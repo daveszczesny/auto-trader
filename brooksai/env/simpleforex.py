@@ -93,9 +93,6 @@ class SimpleForexEnv(gym.Env):
             dtype=np.float32
         )
 
-        # Possible starting point is 80% of the total steps.
-        # The agent will start at a random point within this range
-        self._possible_starting_steps: int = int(self.n_steps * 0.8)
         self.current_step: int = 0
 
         self._update_current_state()
@@ -261,17 +258,9 @@ class SimpleForexEnv(gym.Env):
         return observation.cpu().numpy()
 
     def _calculate_reward(self, action: Action) -> float:
-        if agent_improvement_metric['steps'].numel() > 0:
-            best_step = agent_improvement_metric['steps']
-            best_step = best_step.to(torch.int32)
-            best_step = torch.max(best_step).item()
-        else:
-            best_step = 0
-
         return RewardFunction.get_reward(action,
                                          self.current_price,
-                                         self.current_step,
-                                         best_step)
+                                         self.current_step)
 
 
     def _is_done(self):
@@ -281,12 +270,10 @@ class SimpleForexEnv(gym.Env):
 
         """
         Conditions for episode to be done:
-        1. 75% of initial balance is lost
+        1. 50% of initial balance is lost
         2. Trade window is negative
         """
         self.done = bool(
-            self.initial_balance * 0.5 >= self.current_balance -
-            abs(self.unrealised_pnl if self.unrealised_pnl < 0 else 0) or
             self.current_step >= self.n_steps - 1
         )
 
@@ -297,10 +284,10 @@ class SimpleForexEnv(gym.Env):
             self.current_balance += close_all_trades(self.current_price)
 
             if self.trade_window < 0 and ActionApply.get_action_tracker('trades_opened') <= 0:
-                self.reward -= 1000
+                self.reward -= 15
             
             if self.current_balance > self.initial_balance:
-                self.reward += 100
+                self.reward += 15
 
             average_win = float(
                 ActionApply.get_action_tracker('total_won')) / float(ActionApply.get_action_tracker('trades_closed')
@@ -309,6 +296,11 @@ class SimpleForexEnv(gym.Env):
                 ActionApply.get_action_tracker('total_lost')) / float(ActionApply.get_action_tracker('trades_closed')
                 ) if ActionApply.get_action_tracker('trades_closed') > 0 else 0
 
+
+            if ActionApply.get_action_tracker('trades_opened') > 0 and \
+                self.current_step / ActionApply.get_action_tracker('trades_opened') >= 60:
+                # reward for frequent trading
+                self.reward += 100 
 
             # Log tracker
             logger.log_test('\nAction Tracker')

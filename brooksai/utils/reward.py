@@ -42,12 +42,11 @@ class RewardFunction:
     previous_price: float = None
 
     @staticmethod
-    def get_reward(action: Action, current_price: float, current_step: int, best_step: int):
+    def get_reward(action: Action, current_price: float, current_step: int):
 
         reward: float = 0.0
         if current_step % RewardFunction.sparse_reward_interval == 0 and current_step != 0:
             reward += RewardFunction.get_sparse_reward(current_price)
-            reward += RewardFunction.get_reward_for_best_steps(current_step, best_step)
 
         reward += RewardFunction.get_dense_reward(action, current_price)
         return RewardFunction.normalize_reward(reward)
@@ -131,35 +130,6 @@ class RewardFunction:
 
         reward: float = 0.0
 
-        # identify market sentiment
-        # 1 equates that market went up, -1 equates that market went down
-        market_sentiment = 1 if current_price > RewardFunction.previous_price else -1
-
-        actions = {
-            "LONG": RewardFunction.previous_actions_for_sparse_reward.count(ActionType.LONG),
-            "SHORT": RewardFunction.previous_actions_for_sparse_reward.count(ActionType.SHORT)
-        }
-
-        # if market sentiment is up we should expect more long positions and less short positions
-        # if market sentiment is down we should expect more short positions and less long positions
-        if market_sentiment == 1:
-            ratio_of_long_short = actions["LONG"] / actions["SHORT"] if actions["SHORT"] > 0 else 1
-
-            if ratio_of_long_short > 1.1:
-                reward += Reward.AGENT_IMPROVED
-            else:
-                reward -= Punishment.AGENT_NOT_IMPROVING
-
-        else:
-            ratio_of_short_long = actions["SHORT"] / actions["LONG"] if actions["LONG"] > 0 else 1
-
-            if ratio_of_short_long > 1.1:
-                reward += Reward.AGENT_IMPROVED
-            else:
-                reward -= Punishment.AGENT_NOT_IMPROVING
-
-        # Reward for general performance
-
         average_win = float(
                 ActionApply.get_action_tracker('total_won')) / float(ActionApply.get_action_tracker('trades_closed')
                 ) if ActionApply.get_action_tracker('trades_closed') > 0 else 0
@@ -201,16 +171,6 @@ class RewardFunction:
         RewardFunction.previous_actions_for_sparse_reward.clear()
 
         return reward
-
-    @staticmethod
-    def get_reward_for_best_steps(current_step: int, best_step: int) -> float:
-        """
-        Give bonus reward if the agent has exceeded the best step
-        """
-        if current_step > best_step:
-            return Reward.AGENT_IMPROVED
-
-        return 0
 
     @staticmethod
     def do_nothing_curve(duration: int,
