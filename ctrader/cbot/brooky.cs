@@ -23,15 +23,23 @@ namespace cAlgo.Robots
         private readonly HttpClient httpClient = new();
         private readonly string BASE_URL = "https://brooky-api-550951781970.europe-west2.run.app";
 
+        private bool warmedUp = false;
+
         protected override void OnStart()
         {
+            Print("Welcome to BrookyAI - Created by Dave Szczesny");
+            this.warmup();
+        }
 
+        void warmup()
+        {
             // initialize the indicators
             ema21 = Indicators.ExponentialMovingAverage(Bars.ClosePrices, 21);
             ema50 = Indicators.ExponentialMovingAverage(Bars.ClosePrices, 50);
             ema200 = Indicators.ExponentialMovingAverage(Bars.ClosePrices, 200);
             
-            int warmUpPeriod = 200;
+            // initialize variables
+            const int warmUpPeriod = 200;
             var closePrices = new double[warmUpPeriod];
             var highPrices = new double[warmUpPeriod];
             var lowPrices = new double[warmUpPeriod];
@@ -40,6 +48,7 @@ namespace cAlgo.Robots
             var ema200Values = new double[warmUpPeriod];
 
 
+            // initialize the warmup period values
             for (int i = 0; i < warmUpPeriod; i++)
             {
                 int index = Bars.Count - 1 - i;
@@ -51,27 +60,38 @@ namespace cAlgo.Robots
                 ema200Values[i] = ema200.Result[index];
             }
 
+            // form payload
             var payload = new 
             {
-                closePrices = closePrices,
-                highPrices = highPrices,
-                lowPrices = lowPrices,
-                ema21 = ema21Values,
-                ema50 = ema50Values,
-                ema200 = ema200Values
-            }
+                balance = Account.Balance,
+                current_prices = closePrices,
+                current_highs = highPrices,
+                current_lows = lowPrices,
+                indicators = new[]
+                {
+                    new {name = "ema_200", value = ema200Values},
+                    new {name = "ema_50", value = ema50Values},
+                    new {name = "ema_21", value = ema21Values}
+                }
+            };
 
             string jsonData = JsonSerializer.Serialize(payload);
-            SendPostRequestToWarmUp(jsonData);
 
+            SendPostRequestToWarmUp(jsonData);
         }
 
         protected override void OnBar()
         {
+            
+            if (!this.warmedUp) {
+                Print("Bot not warmed up! Restarting warmup sequence.");
+                return;
+            }
+
             // Retrive current market data
-            DataSeries currentBidPrice = Bars.ClosePrices;
-            DataSeries currentHigh = Bars.HighPrices;
-            DataSeries currentLow = Bars.LowPrices;
+            double currentBidPrice = Bars.ClosePrices.LastValue;
+            double currentHigh = Bars.HighPrices.LastValue;
+            double currentLow = Bars.LowPrices.LastValue;
             double currentEma21 = ema21.Result.LastValue;
             double currentEma50 = ema50.Result.LastValue;
             double currentEma200 = ema200.Result.LastValue;
@@ -80,7 +100,7 @@ namespace cAlgo.Robots
             var payload = new
             {
                 balance = Account.Balance,
-                unrealized_pnl = Account.UnrealizedPnL,
+                unrealized_pnl = Account.UnrealizedGrossProfit,
                 current_price = currentBidPrice,
                 current_high = currentHigh,
                 current_low = currentLow,
@@ -95,7 +115,6 @@ namespace cAlgo.Robots
 
             string jsonData = JsonSerializer.Serialize(payload);
 
-            // Send data over API
             SendPostRequest(jsonData);
         }
 
@@ -110,17 +129,22 @@ namespace cAlgo.Robots
 
                 if (response.IsSuccessStatusCode)
                 {
-                    Print("Data sent successfully");
-
-                    string conent = await response.Content.ReadAsStringAsync();
-                    HandleResponse(content.ToString());
+                    string content_ = await response.Content.ReadAsStringAsync();
+                    HandleResponse(content_);
+                }
+                else if(response.StatusCode == System.Net.HttpStatusCode.ServiceUnavailable){
+                    Print("Warmup failed to uphold. Restarting warmup. Status Code: " + response.StatusCode);
+                    this.warmup();
                 }
                 else
                 {
-                    Print("Failed to send data");
+                    Print("Failed to send data due to unhandled response code.");
+                    Print("Status code: " + response.StatusCode);
                 }
-            }catch(Exception e){
-                Console.WriteLine(e);
+            }
+            catch(Exception e) {
+                Print("Failed sending post request");
+                Print(e.Message);
             }
         }
 
@@ -129,49 +153,60 @@ namespace cAlgo.Robots
         {
             try
             {
+                Print("Attempting to send warmup post request");
                 var API = BASE_URL + "/brooksai/warmup";
                 var content = new StringContent(jsonData, Encoding.UTF8, "application/json");
                 HttpResponseMessage response = await httpClient.PostAsync(API, content);
 
                 if (response.IsSuccessStatusCode)
                 {
-                    Print("Data sent successfully");
+                    this.warmedUp = true;
                 }
                 else
                 {
                     Print("Failed to send data");
+                    Print("Status code: " + response.StatusCode);
                 }
+            }
+            catch (Exception e) {
+                Print(e.Message);
             }
         }
 
         private void HandleResponse(string content)
         {
-            if (content == null) return;
+            if (content == null) {
+                Print("No response from server");
+                return;
+            };
 
             var response = JsonSerializer.Deserialize<Dictionary<string, string>>(content);
 
             response.TryGetValue("action", out string action);
-            response.TryGetValue("lot_size", out string lotSize);
+            // response.TryGetValue("lot_size", out string lotSize);
             response.TryGetValue("take_profit", out string takeProfit);
             response.TryGetValue("stop_loss", out string stopLoss);
 
             // convert lot size to volume units
-            double volume = double.Parse(lotSize) * 100_000;
+            // double volume = double.Parse(lotSize) * 100_000;
             string symbol = "EURUSD";
 
             if (action == "BUY" || action == "SELL")
             {
+                Print("Entering into trade!");
                 TradeType tradeType = action == "BUY" ? TradeType.Buy : TradeType.Sell;
-                ExecuteMarketOrder(tradeType, symbol, volume);
+                ExecuteMarketOrder(tradeType, symbol, 1);
             }
             else if (action == "CLOSE")
             {
-
+                Print("Attempting to exit trade!");
                 var position = Positions.Find("Brooky");
                 if (position != null)
                 {
                     ClosePosition(position);
                 }
+            } else {
+                Print("Will do nothing for a minute. Just wait and see what I do :)");
             }
 
         }

@@ -32,7 +32,6 @@ logger = logging.getLogger('AutoTrader')
 
 
 def main():
-    
 
     logger.info(r'''
 
