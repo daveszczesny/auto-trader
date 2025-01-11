@@ -5,7 +5,6 @@ setup-venv:
 	python3.10 -m venv venv
 	. venv/bin/activate
 	venv/bin/pip install -r requirements/requirements.txt
-	venv/bin/pip install git+https://github.com/DLR-RM/stable-baselines3
 	venv/bin/pip install -r requirements/requirements_test.txt
 
 	venv/bin/pip install -r brookyapi/requirements.txt

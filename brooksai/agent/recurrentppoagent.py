@@ -52,7 +52,7 @@ class RecurrentPPOAgent:
         self.model = RecurrentPPO(
             "MlpLstmPolicy",
             env,
-            verbose=1,
+            verbose=0,
             n_steps=1024,
             batch_size=batch_size, # larger number reduces variance in learning?
             n_epochs=10,
@@ -74,17 +74,17 @@ class RecurrentPPOAgent:
         self.num_envs = 1
         self.log_dir = log_dir
 
-    def learn(self, total_timesteps: int = 5_000_000):
+    def learn(self, total_timesteps: int):
         """
         Train the model on the environment for a specified number of timesteps.
         :param total_timesteps: The total number of timesteps to train the model for.
         """
 
         # Save the model every SAVE_FREQ timesteps
-        checkpoint_callback = CheckpointCallback(save_freq=SAVE_FREQ, save_path='models/', name_prefix='model')
-        callback = CallbackList([checkpoint_callback])
+        # checkpoint_callback = CheckpointCallback(save_freq=SAVE_FREQ, save_path='models/', name_prefix='model')
+        # callback = CallbackList([checkpoint_callback])
 
-        self.model.learn(total_timesteps, tb_log_name="ppo_recurrent", callback=callback)
+        self.model.learn(total_timesteps, tb_log_name="ppo_recurrent")
 
 
     def predict(self, observation=None, **kwargs):
