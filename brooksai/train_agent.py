@@ -1,24 +1,35 @@
 import os
+import sys
 import logging
+import time
+
+import torch
+import dask.dataframe as dd
+import numpy as np
 
 from stable_baselines3.common.env_util import make_vec_env
+from stable_baselines3.common.vec_env import SubprocVecEnv
 
 from brooksai.agent.recurrentppoagent import RecurrentPPOAgent
 from brooksai.env.scripts import register_env
+from brooksai.utils.format import format_time
 
-MODEL_PATH = "ppo_forex.zip"
-SAVE_FREQ  = 100_000
-CYCLES = 10
-TIMESTEPS_PER_CYCLE = 5_000_000
+# change recursion limit to max
+sys.setrecursionlimit(10**6)
+
+CYCLES = 1_000
+PARTITIONS=50
 
 logging.basicConfig(level=logging.INFO, format='%(name)s - %(message)s')
 logger = logging.getLogger('AutoTrader')
 
+best_model_base_path: str = 'best_models/'
+best_model_path = best_model_base_path + 'best_model_cycle_1.zip'
+best_performance = 800
+
+total_time = 0
+
 def main():
-    env = make_vec_env('ForexEnv-v0', n_envs=1)
-
-    model = None
-
     logger.info(r'''
 
  $$$$$$\              $$\            $$$$$$$$\                       $$\                           $$\                       $$$$$$$\                                
@@ -34,29 +45,95 @@ $$ |  $$ |\$$$$$$  |  \$$$$  |\$$$$$$  |$$ |$$ |     \$$$$$$$ |\$$$$$$$ |\$$$$$$
                                                                                                               \______/                                               
 ''')
 
-    # check if model exists
-    if os.path.exists(MODEL_PATH):
-        logger.info('Existing model found... loading')
-        model = RecurrentPPOAgent.load(MODEL_PATH, env)
-        logger.info('Model loaded')
-    else:
-        logger.info('No existing model found...')
-        logger.info('Creating new model...')
+    logger.info('Loading dataset')
+    dataset = dd.read_csv('resources/training_data2.csv')
+    logger.info('Dataset loaded')
 
-        model = RecurrentPPOAgent(env)
-        logger.info('Model created')
-
-        model.save(MODEL_PATH)
-        logger.info('Model saved')
+    logger.info('Partitioning dataset')
+    windows = dataset.repartition(npartitions=PARTITIONS)
+    logger.info(f'Created {windows.npartitions} partitions')
 
 
-    logger.info(f'Training model with {CYCLES} cycles, and {TIMESTEPS_PER_CYCLE} total timesteps per cycle...')
     for i in range(CYCLES):
+        start_time = time.time()
         logger.info(f'Starting training cycle {i + 1}')
-        model.learn(total_timesteps=TIMESTEPS_PER_CYCLE)
-        logger.info(f'Finished training cycle {i + 1}')
-        model.save(MODEL_PATH)
-        logger.info(f'Model {i+1} saved')
+
+        for window in windows.to_delayed():
+            run_model(window, start_time, i)
+
+
+def run_model(window, start_time, i):
+    global best_model_path, best_performance, total_time
+
+    for _ in range(5):
+        no_best_models_saved = len([name for name in os.listdir(best_model_base_path) \
+                                    if os.path.isfile(os.path.join(best_model_base_path, name))])
+
+        if no_best_models_saved >= 1:
+            best_model_path = best_model_base_path + f'best_model_cycle_{no_best_models_saved}.zip'
+
+        env, window_ = configure_env(window)
+
+        # Load exiting model or create new one
+        if os.path.exists(best_model_path):
+            logger.info(f'Existing model found at {best_model_path}... loading')
+            model = RecurrentPPOAgent.load(best_model_path, env)
+            logger.info('Model loaded')
+        else:
+            logger.info('No existing model found... '
+                        'Creating new model...')
+
+            model = RecurrentPPOAgent(env)
+            logger.info('Model created')
+
+            model.save(best_model_path)
+            logger.info('Model saved')
+
+        # Commence training
+        logger.info(f'Commencing training with {len(window_)} data points')
+        model.learn(total_timesteps=len(window_))
+        env.close()
+
+
+    # Calculate time taken
+    end_time = time.time()
+    cycle_time = end_time - start_time
+    total_time += cycle_time
+    avg_time_per_cycle = total_time / (i + 1)
+    remaining_cycles = CYCLES - (i + 1)
+    eta = avg_time_per_cycle * remaining_cycles
+
+    logger.info(f'Cycle {i + 1} out of {CYCLES} took {cycle_time:.2f} seconds')
+    logger.info(f'Estimated time remaining: {format_time(eta)}')
+
+
+def configure_env(window):
+    window_ = window.select_dtypes(include=[float, int])
+    window_ = window_.compute()
+    window_ = torch.tensor(window_.values, dtype=torch.float32)
+
+    model_n_steps = 1024
+    length = len(window_)
+    if length % model_n_steps != 0:
+        new_length = (length // model_n_steps) * model_n_steps
+        window_ = window_[:new_length]
+        logger.info(f'Window length adjusted to fit model n_steps, new length is {len(window_)} from {length}')
+
+    logger.info(f'Training window size {len(window_)}')
+
+    logger.info('Creating environment')
+    env = make_vec_env(
+        'ForexEnv-v0',
+        n_envs=1,
+        env_kwargs={
+            'data': window_,
+            'split': True
+            },
+        )
+
+    return env, window_
+
+
 
 if __name__ == '__main__':
     main()

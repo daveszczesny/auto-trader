@@ -14,17 +14,17 @@ class ActionType(Enum):
 class Punishment:
     CLOSING_TRADE_TOO_QUICKLY = 0.1
     NO_TRADE_OPEN = 0.5
-    TRADE_CLOSED_IN_LOSS = 0.5
+    TRADE_CLOSED_IN_LOSS = 0.1
     SIGNIFICANT_LOSS = 0.2
     INVALID_ACTION = 0.8
-    AGENT_NOT_IMPROVING = 0.4
+    AGENT_NOT_IMPROVING = 0.3
 
 class Reward:
     TRADE_CLOSED_IN_PROFIT = 0.5
-    TRADE_OPENED = 0.1
+    TRADE_OPENED = 1.5
     TRADE_CLOSED_WITHIN_TTL = 0.1
     CLOSE_TRADE = 0.2
-    AGENT_IMPROVED = 0.4
+    AGENT_IMPROVED = 0.6
 
 action_type_mapping = {
     0: ActionType.DO_NOTHING,
@@ -35,12 +35,12 @@ action_type_mapping = {
 
 class ApplicationConstants:
     INITIAL_BALANCE = 1_000
-    DEFAULT_TRADE_TTL = 2_880 # 2 days
-    DEFAULT_TRADE_WINDOW = 1440 # 1 day
+    DEFAULT_TRADE_TTL = 7_200 # 5 days
+    DEFAULT_TRADE_WINDOW = 5_760 # 5 day
     CONTRACT_SIZE = 100_000
     LEVERAGE = 500
     TRANSACTION_FEE = 2.54
     BIG_LOSS = 50
     DEVICE = 'cpu'
 
-    DO_NOTHING_MIDPOINT = 180 # 3 hours
+    DO_NOTHING_MIDPOINT = 2_880 # 2 days

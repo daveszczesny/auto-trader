@@ -5,7 +5,6 @@ setup-venv:
 	python3.10 -m venv venv
 	. venv/bin/activate
 	venv/bin/pip install -r requirements/requirements.txt
-	venv/bin/pip install git+https://github.com/DLR-RM/stable-baselines3
 	venv/bin/pip install -r requirements/requirements_test.txt
 
 	venv/bin/pip install -r brookyapi/requirements.txt
@@ -15,6 +14,9 @@ clean-venv:
 
 train:
 	PYTHONPATH=${shell pwd} venv/bin/python brooksai/train_agent.py
+
+tune:
+	PYTHONPATH=${shell pwd} venv/bin/python brooksai/tuner.py
 
 lint:
 	venv/bin/pylint --fail-under=9 brooksai

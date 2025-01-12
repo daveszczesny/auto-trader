@@ -1,4 +1,18 @@
+"""
+@article{towers2024gymnasium,
+  title={Gymnasium: A Standard Interface for Reinforcement Learning Environments},
+  author={Towers, Mark and Kwiatkowski, 
+  Ariel and Terry, Jordan and Balis, John U and De Cola,
+  Gianluca and Deleu, Tristan and Goul{\~a}o, Manuel and Kallinteris,
+  Andreas and Krimmel, Markus and KG, Arjun and others},
+  journal={arXiv preprint arXiv:2407.17032},
+  year={2024}
+}
+"""
+
+
 from typing import Tuple, Optional, Dict, Any
+import logging as log
 
 import dask.dataframe as dd
 
@@ -23,6 +37,9 @@ from brooksai.services.logs.logger import Logger
 c = CurrencyConverter()
 logger = Logger(mode='test')
 
+log.basicConfig(level=log.INFO, format='%(name)s - %(message)s')
+log_ = log.getLogger('AutoTrader')
+
 # Agent improvment metrics
 # This is not reset per epsiode, but for every run of training
 agent_improvement_metric = {
@@ -32,6 +49,7 @@ agent_improvement_metric = {
     "win_lose_ratio": torch.tensor([], dtype=torch.float32, device=ApplicationConstants.DEVICE),
     "steps": torch.tensor([], dtype=torch.float32, device=ApplicationConstants.DEVICE)
 }
+
 
 
 # pylint: disable=too-many-instance-attributes
@@ -45,18 +63,23 @@ class SimpleForexEnv(gym.Env):
     """
 
     def __init__(self,
-                 data: str,
+                 data: str | dd.DataFrame,
                  initial_balance: float = ApplicationConstants.INITIAL_BALANCE,
-                 render_mode: Optional[str] = None):
+                 render_mode: Optional[str] = None,
+                 split: bool = True) -> None:
 
-        self.data = dd.read_csv(data)
-        self.data = self.data.select_dtypes(include=[float, int])
-        self.data = self.data.to_dask_array(lengths=True)
-        self.data = self.data.compute()
-        self.data = torch.tensor(self.data, dtype=torch.float32, device=ApplicationConstants.DEVICE)
+        if split:
+            self.data = data
+        else:
+            self.data = dd.read_csv(data)
+            self.data = self.data.select_dtypes(include=[float, int])
+            self.data = self.data.to_dask_array(lengths=True)
+            self.data = self.data.compute()
+            self.data = torch.tensor(self.data, dtype=torch.float32, device=ApplicationConstants.DEVICE)
 
         # Environment variables
-        self.n_steps = len(self.data)
+        self.n_steps = len(self.data) # number of steps in the dataset
+        log_.info(f'Number of steps in the dataset: {self.n_steps}')
         self.render_mode = render_mode
 
         # Observation space
@@ -92,21 +115,31 @@ class SimpleForexEnv(gym.Env):
         self.unrealised_pnl: float = 0.0
 
 
+
     def _update_current_state(self):
         """
         Update the current state of the environment
             including current price, high, low, and EMAs
         """
+
+        # Data mapping
+        HIGH_PRICE = 0 # bid_high
+        LOW_PRICE = 1 # bid_low
+        CLOSE_PRICE = 2 # bid_close
+        EMA_21_PRICE = 3 # EMA 21
+        EMA_50_PRICE = 4 # EMA 50
+        EMA_200_PRICE = 5 # EMA 200
+
         if torch.cuda.is_available() and not self.data.is_cuda:
             self.data = self.data.cuda()
 
-        self.current_price: float = float(self.data[self.current_step, 6].item())
-        self.current_high: float = float(self.data[self.current_step, 5].item())
-        self.current_low: float = float(self.data[self.current_step, 4].item())
+        self.current_price: float = float(self.data[self.current_step, CLOSE_PRICE].item())
+        self.current_high: float = float(self.data[self.current_step, HIGH_PRICE].item())
+        self.current_low: float = float(self.data[self.current_step, LOW_PRICE].item())
         self.current_emas: Tuple[float, float, float] = (
-            float(self.data[self.current_step, 10].item()),
-            float(self.data[self.current_step, 11].item()),
-            float(self.data[self.current_step, 12].item())
+            float(self.data[self.current_step, EMA_21_PRICE].item()),
+            float(self.data[self.current_step, EMA_50_PRICE].item()),
+            float(self.data[self.current_step, EMA_200_PRICE].item())
         )
 
     def step(self, action: np.ndarray) -> Tuple[torch.Tensor, float, bool, bool, dict]:
@@ -119,26 +152,22 @@ class SimpleForexEnv(gym.Env):
         action: Action = ActionBuilder.construct_action(action)
 
         # Not needed right now, but will eventually once sl & tp are used by agent
-        trigger_stop_or_take_profit(self.current_high, self.current_low)
+        # trigger_stop_or_take_profit(self.current_high, self.current_low)
 
         # Calculate the reward for step
         self.reward = self._calculate_reward(action)
 
         # Apply the action to the environment
-        value, tw = ActionApply.apply_action(action,
+        value, self.trade_window = ActionApply.apply_action(action,
                                              current_price=self.current_price,
                                              trade_window=self.trade_window)
 
         self.current_balance += value
-        self.trade_window = tw
 
 
         self.unrealised_pnl = float(self._get_unrealized_pnl())
 
         self._update_current_state()
-
-        # Check if the episode is done, if so, process the episode
-        self._is_done()
 
         # Log the step
         logger.log_test(f"{self.current_step}, "
@@ -152,6 +181,9 @@ class SimpleForexEnv(gym.Env):
                         f"{round(self.unrealised_pnl, 2)}, "
                         f"{self.reward}"
         )
+
+        # Check if the episode is done, if so, process the episode
+        self._is_done()
 
         self.current_step += 1
 
@@ -201,6 +233,7 @@ class SimpleForexEnv(gym.Env):
         ActionApply.reset_tracker()
         RewardFunction.reset_rewards()
 
+        log_.info(f'A reset has been called at step {self.current_step} of {len(self.data)}')
         logger.create_new_log_file()
         return self._get_observation(), {}
 
@@ -234,17 +267,9 @@ class SimpleForexEnv(gym.Env):
         return observation.cpu().numpy()
 
     def _calculate_reward(self, action: Action) -> float:
-        if agent_improvement_metric['steps'].numel() > 0:
-            best_step = agent_improvement_metric['steps']
-            best_step = best_step.to(torch.int32)
-            best_step = torch.max(best_step).item()
-        else:
-            best_step = 0
-
         return RewardFunction.get_reward(action,
                                          self.current_price,
-                                         self.current_step,
-                                         best_step)
+                                         self.current_step)
 
 
     def _is_done(self):
@@ -254,14 +279,12 @@ class SimpleForexEnv(gym.Env):
 
         """
         Conditions for episode to be done:
-        1. 75% of initial balance is lost
         2. Trade window is negative
         """
-        self.done = bool(
-            self.initial_balance * 0.75 >= self.current_balance -
-            abs(self.unrealised_pnl if self.unrealised_pnl < 0 else 0)
-            or self.trade_window < 0
-        )
+        self.done = self.current_step >= self.n_steps
+
+        if self.done:
+            log_.info(f'Episode is done, {self.current_step} >= {self.n_steps - 1}')
 
         # If the episode is done, close all trades
         #   calculate the final balance
@@ -269,8 +292,11 @@ class SimpleForexEnv(gym.Env):
         if self.done:
             self.current_balance += close_all_trades(self.current_price)
 
-            if self.trade_window < 0:
-                self.reward -= 0.2
+            if self.trade_window < 0 and ActionApply.get_action_tracker('trades_opened') <= 0:
+                self.reward -= 15
+
+            if self.current_balance > self.initial_balance:
+                self.reward += 15
 
             average_win = float(
                 ActionApply.get_action_tracker('total_won')) / float(ActionApply.get_action_tracker('trades_closed')
@@ -279,6 +305,11 @@ class SimpleForexEnv(gym.Env):
                 ActionApply.get_action_tracker('total_lost')) / float(ActionApply.get_action_tracker('trades_closed')
                 ) if ActionApply.get_action_tracker('trades_closed') > 0 else 0
 
+
+            if ActionApply.get_action_tracker('trades_opened') > 0 and \
+                self.current_step / ActionApply.get_action_tracker('trades_opened') >= 60:
+                # reward for frequent trading
+                self.reward += 100
 
             # Log tracker
             logger.log_test('\nAction Tracker')

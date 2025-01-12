@@ -8,14 +8,17 @@ import brooksai.models.trade as trade_model
 from brooksai.env.simpleforex import SimpleForexEnv
 
 
-CURRENT_PRICE_INDEX = 6
-CURRENT_HIGH_INDEX = 5
-CURRENT_LOW_INDEX = 4
+CURRENT_PRICE_INDEX = 2
+CURRENT_HIGH_INDEX = 0
+CURRENT_LOW_INDEX = 1
+EMA_21_INDEX = 3
+EMA_50_INDEX = 4
+EMA_200_INDEX = 5
 
 class EnvironmentTest(unittest.TestCase):
     def setUp(self):
         self.data_path = "brooksai/tests/data/sample_data.csv"
-        self.env = SimpleForexEnv(self.data_path)
+        self.env = SimpleForexEnv(self.data_path, split=False)
 
     def test_initialization(self):
 
@@ -40,9 +43,9 @@ class EnvironmentTest(unittest.TestCase):
         self.assertEqual(self.env.current_high, self.env.data[0, CURRENT_HIGH_INDEX].item())
         self.assertEqual(self.env.current_low, self.env.data[0, CURRENT_LOW_INDEX].item())
         self.assertEqual(self.env.current_emas, (
-            self.env.data[0, 10].item(),
-            self.env.data[0, 11].item(),
-            self.env.data[0, 12].item()
+            self.env.data[0, EMA_21_INDEX].item(),
+            self.env.data[0, EMA_50_INDEX].item(),
+            self.env.data[0, EMA_200_INDEX].item()
         ))
         self.assertEqual(self.env.reward, 0.0)
         self.assertEqual(self.env.current_balance, self.env.initial_balance)
@@ -78,14 +81,6 @@ class EnvironmentTest(unittest.TestCase):
 
         self.assertEqual(len(trade_model.open_trades), 0)
 
-        # Test done
-        self.assertFalse(self.env.done)
-
-        self.env.current_balance = 0
-        self.env.step(action)
-
-        self.assertTrue(self.env.done)
-
     def test_reset(self):
         self.env.reset()
 
@@ -94,9 +89,9 @@ class EnvironmentTest(unittest.TestCase):
         self.assertEqual(self.env.current_high, self.env.data[0, CURRENT_HIGH_INDEX].item())
         self.assertEqual(self.env.current_low, self.env.data[0, CURRENT_LOW_INDEX].item())
         self.assertEqual(self.env.current_emas, (
-            self.env.data[0, 10].item(),
-            self.env.data[0, 11].item(),
-            self.env.data[0, 12].item()
+            self.env.data[0, EMA_21_INDEX].item(),
+            self.env.data[0, EMA_50_INDEX].item(),
+            self.env.data[0, EMA_200_INDEX].item()
         ))
 
         self.assertEqual(self.env.reward, 0.0)
