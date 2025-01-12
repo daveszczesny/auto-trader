@@ -145,9 +145,6 @@ class SimpleForexEnv(gym.Env):
         :param action: np.ndarray
         :return: Tuple[torch.Tensor, float, bool, bool, dict], observation, reward, done, _, info
         """
-
-        log_.info(f'This is step {self.current_step}')
-
         # Construct the action from agent input
         action: Action = ActionBuilder.construct_action(action)
 
@@ -281,8 +278,7 @@ class SimpleForexEnv(gym.Env):
         Conditions for episode to be done:
         2. Trade window is negative
         """
-        self.done = self.current_step >= self.n_steps - 2
-        log_.info(f'Done variable is {self.done}')
+        self.done = self.current_step >= self.n_steps
 
         if self.done:
             log_.info(f'Episode is done, {self.current_step} >= {self.n_steps - 1}')

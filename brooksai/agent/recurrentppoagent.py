@@ -24,6 +24,8 @@ from sb3_contrib import RecurrentPPO
 from stable_baselines3.common.callbacks import CheckpointCallback, CallbackList
 from stable_baselines3.common.monitor import Monitor
 
+from brooksai.agent.callbacks.performance_callback import EvaluatePerformanceCallback
+
 MODEL_PATH = "ppo_forex.zip"
 SAVE_FREQ  = 50_000
 
@@ -80,11 +82,13 @@ class RecurrentPPOAgent:
         :param total_timesteps: The total number of timesteps to train the model for.
         """
 
-        # Save the model every SAVE_FREQ timesteps
-        # checkpoint_callback = CheckpointCallback(save_freq=SAVE_FREQ, save_path='models/', name_prefix='model')
-        # callback = CallbackList([checkpoint_callback])
+        evaluate_performance_callback = EvaluatePerformanceCallback(
+            self.env,
+            eval_freq=total_timesteps-1,
+            verbose=1
+        )
 
-        self.model.learn(total_timesteps, tb_log_name="ppo_recurrent")
+        self.model.learn(total_timesteps, tb_log_name="ppo_recurrent", callback=evaluate_performance_callback)
 
 
     def predict(self, observation=None, **kwargs):
