@@ -1,5 +1,6 @@
 import os
 import logging
+import json
 
 from stable_baselines3.common.callbacks import BaseCallback
 
@@ -10,6 +11,9 @@ logger = logging.getLogger('AutoTrader')
 
 best_model_base_path: str = 'best_models/'
 
+DEFAULT_PERFORMANCE_BENCHMARK = 1200
+METADATA_PATH = 'best_model_metadata.json'
+
 class EvaluatePerformanceCallback(BaseCallback):
     """
     A callback that evaluates the performance of the model at regular intervals.
@@ -18,7 +22,7 @@ class EvaluatePerformanceCallback(BaseCallback):
         super().__init__(verbose)
         self.eval_env = eval_env
         self.eval_freq = eval_freq
-        self.best_performance = 700
+        self.best_performance = self.load_best_performance_model()
 
     def _on_step(self) -> bool:
         """
@@ -32,10 +36,34 @@ class EvaluatePerformanceCallback(BaseCallback):
                 no_best_models_saved = len([name for name in os.listdir(best_model_base_path) if os.path.isfile(os.path.join(best_model_base_path, name))])
                 model_path = best_model_base_path + f'best_model_cycle_{no_best_models_saved+1}.zip'
                 self.model.save(model_path)
+                self.save_metadata(model_path, performance)
                 if self.verbose > 0:
                     logger.info(f'New best model saved with performance: {performance}')
 
         return True
+
+    def load_best_performance_model(self) -> float:
+        """
+        Find best performance metric from the metadata file
+        """
+        if os.path.exists(METADATA_PATH):
+            with open(METADATA_PATH, 'r') as f:
+                metadata = json.load(f)
+                return max(item['performance'] for item in metadata)
+        return DEFAULT_PERFORMANCE_BENCHMARK
+
+
+    def save_metadata(self, model_path: str, performance: float) -> None:
+        """
+        Save model and performance to metadata file
+        """
+        metadata = []
+        if os.path.exists(METADATA_PATH):
+            with open(METADATA_PATH, 'r') as f:
+                metadata = json.load(f)
+        metadata.append({'model_path': model_path, 'performance': performance})
+        with open(METADATA_PATH, 'w') as f:
+            json.dump(metadata, f)
 
 
 def evaluate_model(env):
