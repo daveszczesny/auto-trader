@@ -37,9 +37,6 @@ test:
 	PYTHONPATH=${shell pwd} venv/bin/pytest brooksai/tests/
 	PYTHONPATH=${shell pwd} venv/bin/pytest brookyapi/tests/
 
-run-tradevis:
-	PYTHONPATH=${shell pwd} tradevis/venv/bin/python tradevis/main.py
-
 
 # Windows Commands
 setup-venv-w:
