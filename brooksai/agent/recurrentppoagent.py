@@ -1,6 +1,7 @@
 """
 @article{stable-baselines3,
-  author  = {Antonin Raffin and Ashley Hill and Adam Gleave and Anssi Kanervisto and Maximilian Ernestus and Noah Dormann},
+  author  = {Antonin Raffin and Ashley Hill and Adam Gleave and Anssi Kanervisto and 
+    Maximilian Ernestus and Noah Dormann},
   title   = {Stable-Baselines3: Reliable Reinforcement Learning Implementations},
   journal = {Journal of Machine Learning Research},
   year    = {2021},
@@ -100,11 +101,16 @@ class RecurrentPPOAgent:
         For training purposes, deterministic should be False,
         and for evaluation (production) deterministic should be True.
 
-        :param observation: The observation to predict an action for. If None, it will be retrieved from kwargs.
-        :param lstm_states: The LSTM states to use for prediction. Retrieved from kwargs if not provided.
-        :param episode_starts: A boolean array indicating whether each episode has started. Retrieved from kwargs if not provided.
-        :param deterministic: Whether to use deterministic or stochastic actions. Default is False.
-        :return: A tuple containing the raw action predicted by the model and the updated LSTM states.
+        :param observation: The observation to predict an action for.
+             If None, it will be retrieved from kwargs.
+        :param lstm_states: The LSTM states to use for prediction. 
+            Retrieved from kwargs if not provided.
+        :param episode_starts: A boolean array indicating whether each episode has started. 
+            Retrieved from kwargs if not provided.
+        :param deterministic: Whether to use deterministic or stochastic actions. 
+            Default is False.
+        :return: A tuple containing the raw action predicted by the model and
+            the updated LSTM states.
         :raises ValueError: If observation or episode_starts are not provided.
         """
 

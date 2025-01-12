@@ -9,11 +9,11 @@ def format_time(seconds: int) -> str:
     seconds %= 60
     if weeks > 0:
         return f'{weeks} weeks, {days} days, {hours} hours, {minutes} minutes, {seconds} seconds'
-    elif days > 0:
+    if days > 0:
         return f'{days} days, {hours} hours, {minutes} minutes, {seconds} seconds'
-    elif hours > 0:
+    if hours > 0:
         return f'{hours} hours, {minutes} minutes, {seconds} seconds'
-    elif minutes > 0:
+    if minutes > 0:
         return f'{minutes} minutes, {seconds} seconds'
-    else:
-        return f'{seconds} seconds'
+
+    return f'{seconds} seconds'

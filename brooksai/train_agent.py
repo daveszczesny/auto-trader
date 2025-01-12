@@ -1,15 +1,9 @@
 import os
 import sys
-
-
-# change recursion limit to max
-sys.setrecursionlimit(10**6)
-
 import logging
 import time
 
 import torch
-
 import dask.dataframe as dd
 import numpy as np
 
@@ -18,8 +12,10 @@ from stable_baselines3.common.vec_env import SubprocVecEnv
 
 from brooksai.agent.recurrentppoagent import RecurrentPPOAgent
 from brooksai.env.scripts import register_env
-
 from brooksai.utils.format import format_time
+
+# change recursion limit to max
+sys.setrecursionlimit(10**6)
 
 CYCLES = 1_000
 PARTITIONS=50
@@ -69,8 +65,9 @@ $$ |  $$ |\$$$$$$  |  \$$$$  |\$$$$$$  |$$ |$$ |     \$$$$$$$ |\$$$$$$$ |\$$$$$$
 def run_model(window, start_time, i):
     global best_model_path, best_performance, total_time
 
-    for j in range(5):
-        no_best_models_saved = len([name for name in os.listdir(best_model_base_path) if os.path.isfile(os.path.join(best_model_base_path, name))])
+    for _ in range(5):
+        no_best_models_saved = len([name for name in os.listdir(best_model_base_path) \
+                                    if os.path.isfile(os.path.join(best_model_base_path, name))])
 
         if no_best_models_saved >= 1:
             best_model_path = best_model_base_path + f'best_model_cycle_{no_best_models_saved}.zip'

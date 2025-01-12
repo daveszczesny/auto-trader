@@ -1,7 +1,10 @@
 """
 @article{towers2024gymnasium,
   title={Gymnasium: A Standard Interface for Reinforcement Learning Environments},
-  author={Towers, Mark and Kwiatkowski, Ariel and Terry, Jordan and Balis, John U and De Cola, Gianluca and Deleu, Tristan and Goul{\~a}o, Manuel and Kallinteris, Andreas and Krimmel, Markus and KG, Arjun and others},
+  author={Towers, Mark and Kwiatkowski, 
+  Ariel and Terry, Jordan and Balis, John U and De Cola,
+  Gianluca and Deleu, Tristan and Goul{\~a}o, Manuel and Kallinteris,
+  Andreas and Krimmel, Markus and KG, Arjun and others},
   journal={arXiv preprint arXiv:2407.17032},
   year={2024}
 }
@@ -9,9 +12,9 @@
 
 
 from typing import Tuple, Optional, Dict, Any
+import logging as log
 
 import dask.dataframe as dd
-import logging as log
 
 import torch
 import numpy as np
@@ -306,7 +309,7 @@ class SimpleForexEnv(gym.Env):
             if ActionApply.get_action_tracker('trades_opened') > 0 and \
                 self.current_step / ActionApply.get_action_tracker('trades_opened') >= 60:
                 # reward for frequent trading
-                self.reward += 100 
+                self.reward += 100
 
             # Log tracker
             logger.log_test('\nAction Tracker')
