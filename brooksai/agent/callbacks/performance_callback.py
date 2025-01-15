@@ -43,7 +43,7 @@ class EvaluatePerformanceCallback(BaseCallback):
         These strategies differentiate in the way they calculate the performance metric.
         """
         if self.n_calls % self.eval_freq == 0:
-            performance = evaluate_model(self.eval_env, **strategy('risk-aversed'))
+            performance = evaluate_model(self.eval_env, **get_strategy_params('risk-aversed'))
             if performance > self.best_performance:
                 self.best_performance = performance
 
@@ -116,6 +116,12 @@ def evaluate_model(env: Any, **kwargs) -> float:
     negative_clause = avg_loss * zeta
     performance = (phi * positive_clause) - negative_clause
 
+    normalizetion_factor = alpha + beta + gamma + delta + zeta
+    if normalizetion_factor <= 0:
+        raise ValueError('Normalization factor should be greater than 0')
+    
+    performance = performance / normalizetion_factor
+
     logger.info(f'Evaluation results - balance: {balance}, reward: {reward}, unrealized_pnl: {unrealized_pnl}, win_rate: {win_rate}, trades placed: {trades_placed}')
     logger.info(f'Calculated performance metric: {performance}')
 
@@ -123,8 +129,9 @@ def evaluate_model(env: Any, **kwargs) -> float:
 
 
 
-def strategy(strat: str) -> Dict[str, float]:
+def get_strategy_params(strategy: str) -> Dict[str, float]:
     strategies = {
+        # More aggressive strategy, focusing on maximizing profits, even at the cost of higher risk
         'profit-seeking': {
             'alpha': 0.6,
             'beta': 1.0,
@@ -132,6 +139,7 @@ def strategy(strat: str) -> Dict[str, float]:
             'delta': 0.4,
             'zeta': 1.0,
         },
+        # More conservative strategy, focusing on minimizing risk, even at the cost of lower profits
         'risk-aversed': {
             'alpha': 0.4,
             'beta': 0.6,
@@ -139,6 +147,7 @@ def strategy(strat: str) -> Dict[str, float]:
             'delta': 0.6,
             'zeta': 1.5,
         },
+        # Balanced strategy, focusing on a balance between profits and risk
         'balanced': {
             'alpha': 0.5,
             'beta': 0.8,
@@ -147,4 +156,4 @@ def strategy(strat: str) -> Dict[str, float]:
             'zeta': 1.2,
         }
     }
-    return strategies.get(strat.lower(), {})
+    return strategies.get(strategy.lower(), {})

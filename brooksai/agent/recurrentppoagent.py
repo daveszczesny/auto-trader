@@ -41,7 +41,7 @@ class RecurrentPPOAgent:
         env: gym.Env | Any,
         log_dir: str = 'runs/ppo_recurrent',
         lstm_hidden_size: int = 512,
-        n_nstm_layers: int = 2,
+        n_lstm_layers: int = 2,
         batch_size: int = 1024,
         gamma: float = 0.95,
         learning_rate: float = 1e-4,
@@ -69,7 +69,7 @@ class RecurrentPPOAgent:
             use_sde=True,
             sde_sample_freq=sde_sample_freq, # encourages exploration
             normalize_advantage=True,
-            policy_kwargs={"lstm_hidden_size": lstm_hidden_size, "n_lstm_layers": n_nstm_layers},
+            policy_kwargs={"lstm_hidden_size": lstm_hidden_size, "n_lstm_layers": n_lstm_layers},
             tensorboard_log=log_dir,
             seed=self.seed
             )

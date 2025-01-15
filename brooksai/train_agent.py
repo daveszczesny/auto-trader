@@ -26,7 +26,6 @@ logger = logging.getLogger('AutoTrader')
 
 best_model_base_path: str = 'best_models/'
 best_model_path = best_model_base_path + 'best_model_cycle_1.zip'
-best_performance = 800
 
 total_time = 0
 
@@ -64,7 +63,7 @@ $$ |  $$ |\$$$$$$  |  \$$$$  |\$$$$$$  |$$ |$$ |     \$$$$$$$ |\$$$$$$$ |\$$$$$$
 
 
 def run_model(window, start_time, i) -> None:
-    global best_model_path, best_performance, total_time
+    global best_model_path, total_time
 
     for _ in range(5):
         no_best_models_saved = len([name for name in os.listdir(best_model_base_path) \

@@ -43,7 +43,7 @@ for params in param_combinations:
         gae_lambda=params['gae_lambda'],
         ent_coef=params['ent_coef'],
         sde_sample_freq=params['sde_sample_freq'],
-        lstm_hidden_size=params['lstm_hidden_size'], n_nstm_layers=params['n_lstm_layers'])
+        lstm_hidden_size=params['lstm_hidden_size'], n_lstm_layers=params['n_lstm_layers'])
     agent.learn(total_timesteps=50_000)
 
     episode_rewards, episode_lengths = evaluate_policy(agent, env, n_eval_episodes=20, return_episode_rewards=True)
