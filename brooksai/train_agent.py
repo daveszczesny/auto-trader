@@ -3,13 +3,15 @@ import sys
 import logging
 import time
 
+from typing import Tuple
+
 import torch
 import dask.dataframe as dd
-import numpy as np
 
 from stable_baselines3.common.env_util import make_vec_env
-from stable_baselines3.common.vec_env import SubprocVecEnv
+from stable_baselines3.common.vec_env import VecEnv
 
+from brooksai.config_manager import ConfigManager
 from brooksai.agent.recurrentppoagent import RecurrentPPOAgent
 from brooksai.env.scripts import register_env
 from brooksai.utils.format import format_time
@@ -17,15 +19,16 @@ from brooksai.utils.format import format_time
 # change recursion limit to max
 sys.setrecursionlimit(10**6)
 
-CYCLES = 1_000
-PARTITIONS=50
+config = ConfigManager()
+
+CYCLES = config.get('training.cycles', 1_000)
+PARTITIONS = config.get('training.partitions', 50)
 
 logging.basicConfig(level=logging.INFO, format='%(name)s - %(message)s')
 logger = logging.getLogger('AutoTrader')
 
-best_model_base_path: str = 'best_models/'
+best_model_base_path: str = config.get('training.best_model_path', 'best_models/')
 best_model_path = best_model_base_path + 'best_model_cycle_1.zip'
-best_performance = 800
 
 total_time = 0
 
@@ -62,12 +65,13 @@ $$ |  $$ |\$$$$$$  |  \$$$$  |\$$$$$$  |$$ |$$ |     \$$$$$$$ |\$$$$$$$ |\$$$$$$
             run_model(window, start_time, i)
 
 
-def run_model(window, start_time, i):
-    global best_model_path, best_performance, total_time
+def run_model(window, start_time, i) -> None:
+    global best_model_path, total_time
 
     for _ in range(5):
         no_best_models_saved = len([name for name in os.listdir(best_model_base_path) \
-                                    if os.path.isfile(os.path.join(best_model_base_path, name))])
+                        if os.path.isfile(os.path.join(best_model_base_path, name)) and \
+                            name.endswith('.zip')])
 
         if no_best_models_saved >= 1:
             best_model_path = best_model_base_path + f'best_model_cycle_{no_best_models_saved}.zip'
@@ -107,12 +111,12 @@ def run_model(window, start_time, i):
     logger.info(f'Estimated time remaining: {format_time(eta)}')
 
 
-def configure_env(window):
+def configure_env(window) -> Tuple[VecEnv, torch.Tensor]:
     window_ = window.select_dtypes(include=[float, int])
     window_ = window_.compute()
     window_ = torch.tensor(window_.values, dtype=torch.float32)
 
-    model_n_steps = 1024
+    model_n_steps = config.get('model.n_steps', 1024)
     length = len(window_)
     if length % model_n_steps != 0:
         new_length = (length // model_n_steps) * model_n_steps
@@ -132,7 +136,6 @@ def configure_env(window):
         )
 
     return env, window_
-
 
 
 if __name__ == '__main__':

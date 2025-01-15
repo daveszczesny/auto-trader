@@ -1,0 +1,93 @@
+training:
+  cycles: 1000
+  partitions: 50
+  best_model_path: 'best_models/'
+
+model:
+  log_dir: 'runs/ppo_recurrent'
+  lstm_hidden_size: 512
+  n_lstm_layers: 2
+  batch_size: 1024
+  gamma: 0.95
+  learning_rate: 0.0001
+  gae_lambda: 0.95
+  ent_coef: 0.5
+  sde_sample_freq: 16
+  n_steps: 1024
+  n_epochs: 10
+  clip_range: 0.2
+  vf_coef: 0.5
+  max_grad_norm: 0.5
+  num_envs: 1
+
+environment:
+  mapping:
+    high: 0
+    low: 1
+    close: 2
+    ema_21: 3
+    ema_50: 4
+    ema_200: 5
+
+  constants:
+    action:
+      do_nothing: 0
+      long: 1
+      short: 2
+      close: 3
+
+    trade_type:
+      long: 1
+      short: -1
+
+    punishment:
+      closing_trade_too_quickly: 0.1
+      no_trade_open: 0.5
+      trade_closed_in_loss: 0.2
+      significant_loss: 0.2
+      invalid_action: 0.8
+      agent_not_improving: 0.3
+
+    reward:
+      trade_closed_in_profit: 0.5
+      trade_opened: 1.5
+      trade_closed_within_ttl: 0.1
+      close_trade: 0.2
+      agent_improved: 0.6
+
+    application:
+      initial_balance: 1000
+      ttl: 7200
+      trade_window: 5760
+      contract_size: 100000
+      leverage: 500
+      transaction_fee: 2.54
+      big_loss: 50
+      device: cpu
+      do_nothing_midpoint: 2880
+
+performance_callback:
+  strategies:
+    - strategy:
+        name: 'profit-seeking'
+        alpha: 0.6
+        beta: 1.0
+        gamma: 0.4
+        delta: 0.4
+        zeta: 1.0
+
+    - strategy:
+        name: 'risk-aversed'
+        alpha: 0.4
+        beta: 0.6
+        gamma: 0.2
+        delta: 0.6
+        zeta: 1.5
+
+    - strategy:
+        name: 'balanced'
+        alpha: 0.5
+        beta: 0.8
+        gamma: 0.3
+        delta: 0.5
+        zeta: 1.2

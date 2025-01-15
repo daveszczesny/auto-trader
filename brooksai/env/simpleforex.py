@@ -24,6 +24,7 @@ from gymnasium import spaces
 
 from currency_converter import CurrencyConverter
 
+from brooksai.config_manager import ConfigManager
 from brooksai.models.trade import reset_open_trades,\
     trigger_stop_or_take_profit, close_all_trades, open_trades
 from brooksai.models.constants import TradeType, ApplicationConstants
@@ -34,6 +35,7 @@ from brooksai.utils.reward import RewardFunction
 
 from brooksai.services.logs.logger import Logger
 
+config = ConfigManager()
 c = CurrencyConverter()
 logger = Logger(mode='test')
 
@@ -69,8 +71,10 @@ class SimpleForexEnv(gym.Env):
                  split: bool = True) -> None:
 
         if split:
+            # The split data is already preprocessed so no need to do anything here
             self.data = data
         else:
+            # Load the data and split up types.
             self.data = dd.read_csv(data)
             self.data = self.data.select_dtypes(include=[float, int])
             self.data = self.data.to_dask_array(lengths=True)
@@ -123,12 +127,12 @@ class SimpleForexEnv(gym.Env):
         """
 
         # Data mapping
-        HIGH_PRICE = 0 # bid_high
-        LOW_PRICE = 1 # bid_low
-        CLOSE_PRICE = 2 # bid_close
-        EMA_21_PRICE = 3 # EMA 21
-        EMA_50_PRICE = 4 # EMA 50
-        EMA_200_PRICE = 5 # EMA 200
+        HIGH_PRICE = config.get('environment.mapping.high', 0)
+        LOW_PRICE = config.get('environment.mapping.low', 1) # bid_low
+        CLOSE_PRICE = config.get('environment.mapping.close', 2) # bid_close
+        EMA_21_PRICE = config.get('environment.mapping.ema_21', 3) # EMA 21
+        EMA_50_PRICE = config.get('environment.mapping.ema_50', 4) # EMA 50
+        EMA_200_PRICE = config.get('environment.mapping.ema_200', 5) # EMA 200
 
         if torch.cuda.is_available() and not self.data.is_cuda:
             self.data = self.data.cuda()
@@ -198,7 +202,8 @@ class SimpleForexEnv(gym.Env):
     def reset(self,
               *,
               seed: Optional[int] = None,
-              options: Optional[dict] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
+              options: Optional[dict] = None
+              ) -> Tuple[np.ndarray, Dict[str, Any]]:
         """
         Reset the state of the environment to the inital state
         :param seed: int
@@ -267,14 +272,17 @@ class SimpleForexEnv(gym.Env):
         return observation.cpu().numpy()
 
     def _calculate_reward(self, action: Action) -> float:
-        return RewardFunction.get_reward(action,
-                                         self.current_price,
-                                         self.current_step)
+        return RewardFunction.get_reward(
+            action,
+            self.current_price,
+            self.current_step
+        )
 
 
-    def _is_done(self):
+    def _is_done(self) -> None:
         """
         Check if the episode is done
+        Doesn't return anything but sets the class variable done
         """
 
         """
@@ -293,10 +301,10 @@ class SimpleForexEnv(gym.Env):
             self.current_balance += close_all_trades(self.current_price)
 
             if self.trade_window < 0 and ActionApply.get_action_tracker('trades_opened') <= 0:
-                self.reward -= 15
+                self.reward -= 1
 
             if self.current_balance > self.initial_balance:
-                self.reward += 15
+                self.reward += 1
 
             average_win = float(
                 ActionApply.get_action_tracker('total_won')) / float(ActionApply.get_action_tracker('trades_closed')
@@ -309,7 +317,7 @@ class SimpleForexEnv(gym.Env):
             if ActionApply.get_action_tracker('trades_opened') > 0 and \
                 self.current_step / ActionApply.get_action_tracker('trades_opened') >= 60:
                 # reward for frequent trading
-                self.reward += 100
+                self.reward += 1
 
             # Log tracker
             logger.log_test('\nAction Tracker')
