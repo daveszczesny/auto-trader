@@ -25,10 +25,10 @@ from sb3_contrib import RecurrentPPO
 from stable_baselines3.common.callbacks import CheckpointCallback, CallbackList
 from stable_baselines3.common.monitor import Monitor
 
+from brooksai.config_manager import ConfigManager
 from brooksai.agent.callbacks.performance_callback import EvaluatePerformanceCallback
 
-MODEL_PATH = "ppo_forex.zip"
-SAVE_FREQ  = 50_000
+config = ConfigManager()
 
 class RecurrentPPOAgent:
     """
@@ -40,14 +40,14 @@ class RecurrentPPOAgent:
     def __init__(self,
         env: gym.Env | Any,
         log_dir: str = 'runs/ppo_recurrent',
-        lstm_hidden_size: int = 512,
-        n_lstm_layers: int = 2,
-        batch_size: int = 1024,
-        gamma: float = 0.95,
-        learning_rate: float = 1e-4,
-        gae_lambda: float = 0.95,
-        ent_coef: float = 0.5,
-        sde_sample_freq: int = 16):
+        lstm_hidden_size: int = config.get('model.lstm_hidden_size', 512),
+        n_lstm_layers: int = config.get('model.n_lstm_layers', 2),
+        batch_size: int = config.get('model.batch_size', 1024),
+        gamma: float = config.get('model.gamma', 0.95),
+        learning_rate: float = config.get('model.learning_rate', 1e-4),
+        gae_lambda: float = config.get('model.gae_lambda', 0.95),
+        ent_coef: float = config.get('model.ent_coef', 0.5),
+        sde_sample_freq: int = config.get('model.sde_sample_freq', 16)):
 
         self.seed = np.random.seed(42)
 
@@ -56,16 +56,16 @@ class RecurrentPPOAgent:
             "MlpLstmPolicy",
             env,
             verbose=0,
-            n_steps=1024,
+            n_steps=config.get('model.n_steps', 1024),
             batch_size=batch_size, # larger number reduces variance in learning?
-            n_epochs=10,
+            n_epochs=config.get('model.n_epochs', 10),
             gamma=gamma, # encourages more immediate rewards
             learning_rate=learning_rate,
-            clip_range=0.2,
+            clip_range=config.get('model.clip_range', 0.2),
             gae_lambda=gae_lambda,
             ent_coef=ent_coef, # entropy coefficient
-            vf_coef=0.5,
-            max_grad_norm=0.5, # gradient clipping
+            vf_coef=config.get('model.vf_coef', 0.5), # value function coefficient
+            max_grad_norm=config.get('model.max_grad_norm', 0.5), # gradient clipping
             use_sde=True,
             sde_sample_freq=sde_sample_freq, # encourages exploration
             normalize_advantage=True,

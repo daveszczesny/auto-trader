@@ -24,6 +24,7 @@ from gymnasium import spaces
 
 from currency_converter import CurrencyConverter
 
+from brooksai.config_manager import ConfigManager
 from brooksai.models.trade import reset_open_trades,\
     trigger_stop_or_take_profit, close_all_trades, open_trades
 from brooksai.models.constants import TradeType, ApplicationConstants
@@ -34,6 +35,7 @@ from brooksai.utils.reward import RewardFunction
 
 from brooksai.services.logs.logger import Logger
 
+config = ConfigManager()
 c = CurrencyConverter()
 logger = Logger(mode='test')
 
@@ -125,12 +127,12 @@ class SimpleForexEnv(gym.Env):
         """
 
         # Data mapping
-        HIGH_PRICE = 0 # bid_high
-        LOW_PRICE = 1 # bid_low
-        CLOSE_PRICE = 2 # bid_close
-        EMA_21_PRICE = 3 # EMA 21
-        EMA_50_PRICE = 4 # EMA 50
-        EMA_200_PRICE = 5 # EMA 200
+        HIGH_PRICE = config.get('environment.mapping.high', 0)
+        LOW_PRICE = config.get('environment.mapping.low', 1) # bid_low
+        CLOSE_PRICE = config.get('environment.mapping.close', 2) # bid_close
+        EMA_21_PRICE = config.get('environment.mapping.ema_21', 3) # EMA 21
+        EMA_50_PRICE = config.get('environment.mapping.ema_50', 4) # EMA 50
+        EMA_200_PRICE = config.get('environment.mapping.ema_200', 5) # EMA 200
 
         if torch.cuda.is_available() and not self.data.is_cuda:
             self.data = self.data.cuda()

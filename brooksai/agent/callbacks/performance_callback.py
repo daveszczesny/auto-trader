@@ -6,10 +6,13 @@ from typing import Any, Dict
 
 from stable_baselines3.common.callbacks import BaseCallback
 
+from brooksai.config_manager import ConfigManager
 from brooksai.utils.action import ActionApply
 
 logging.basicConfig(level=logging.INFO, format='%(name)s - %(message)s')
 logger = logging.getLogger('AutoTrader')
+
+config = ConfigManager()
 
 best_model_base_path: str = 'best_models/'
 
@@ -156,4 +159,12 @@ def get_strategy_params(strategy: str) -> Dict[str, float]:
             'zeta': 1.2,
         }
     }
-    return strategies.get(strategy.lower(), {})
+
+    strategies = config.get('performance_callback.strategies')
+    if strategies is None:
+        raise ValueError('No strategies found in the config file')
+    for strat in strategies:
+        if strat['strategy']['name'] == strategy.lower():
+            return strat['strategy']
+        
+    raise ValueError(f'No strategy found with the name {strategy.lower()}')
