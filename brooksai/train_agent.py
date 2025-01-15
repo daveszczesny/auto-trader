@@ -3,12 +3,13 @@ import sys
 import logging
 import time
 
+from typing import Tuple
+
 import torch
 import dask.dataframe as dd
-import numpy as np
 
 from stable_baselines3.common.env_util import make_vec_env
-from stable_baselines3.common.vec_env import SubprocVecEnv
+from stable_baselines3.common.vec_env import VecEnv
 
 from brooksai.agent.recurrentppoagent import RecurrentPPOAgent
 from brooksai.env.scripts import register_env
@@ -18,7 +19,7 @@ from brooksai.utils.format import format_time
 sys.setrecursionlimit(10**6)
 
 CYCLES = 1_000
-PARTITIONS=50
+PARTITIONS = 50
 
 logging.basicConfig(level=logging.INFO, format='%(name)s - %(message)s')
 logger = logging.getLogger('AutoTrader')
@@ -62,12 +63,13 @@ $$ |  $$ |\$$$$$$  |  \$$$$  |\$$$$$$  |$$ |$$ |     \$$$$$$$ |\$$$$$$$ |\$$$$$$
             run_model(window, start_time, i)
 
 
-def run_model(window, start_time, i):
+def run_model(window, start_time, i) -> None:
     global best_model_path, best_performance, total_time
 
     for _ in range(5):
         no_best_models_saved = len([name for name in os.listdir(best_model_base_path) \
-                                    if os.path.isfile(os.path.join(best_model_base_path, name))])
+                        if os.path.isfile(os.path.join(best_model_base_path, name)) and \
+                            name.endswith('.zip')])
 
         if no_best_models_saved >= 1:
             best_model_path = best_model_base_path + f'best_model_cycle_{no_best_models_saved}.zip'
@@ -107,7 +109,7 @@ def run_model(window, start_time, i):
     logger.info(f'Estimated time remaining: {format_time(eta)}')
 
 
-def configure_env(window):
+def configure_env(window) -> Tuple[VecEnv, torch.Tensor]:
     window_ = window.select_dtypes(include=[float, int])
     window_ = window_.compute()
     window_ = torch.tensor(window_.values, dtype=torch.float32)
@@ -132,7 +134,6 @@ def configure_env(window):
         )
 
     return env, window_
-
 
 
 if __name__ == '__main__':

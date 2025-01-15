@@ -69,8 +69,10 @@ class SimpleForexEnv(gym.Env):
                  split: bool = True) -> None:
 
         if split:
+            # The split data is already preprocessed so no need to do anything here
             self.data = data
         else:
+            # Load the data and split up types.
             self.data = dd.read_csv(data)
             self.data = self.data.select_dtypes(include=[float, int])
             self.data = self.data.to_dask_array(lengths=True)
@@ -198,7 +200,8 @@ class SimpleForexEnv(gym.Env):
     def reset(self,
               *,
               seed: Optional[int] = None,
-              options: Optional[dict] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
+              options: Optional[dict] = None
+              ) -> Tuple[np.ndarray, Dict[str, Any]]:
         """
         Reset the state of the environment to the inital state
         :param seed: int
@@ -267,14 +270,17 @@ class SimpleForexEnv(gym.Env):
         return observation.cpu().numpy()
 
     def _calculate_reward(self, action: Action) -> float:
-        return RewardFunction.get_reward(action,
-                                         self.current_price,
-                                         self.current_step)
+        return RewardFunction.get_reward(
+            action,
+            self.current_price,
+            self.current_step
+        )
 
 
-    def _is_done(self):
+    def _is_done(self) -> None:
         """
         Check if the episode is done
+        Doesn't return anything but sets the class variable done
         """
 
         """
@@ -293,10 +299,10 @@ class SimpleForexEnv(gym.Env):
             self.current_balance += close_all_trades(self.current_price)
 
             if self.trade_window < 0 and ActionApply.get_action_tracker('trades_opened') <= 0:
-                self.reward -= 15
+                self.reward -= 1
 
             if self.current_balance > self.initial_balance:
-                self.reward += 15
+                self.reward += 1
 
             average_win = float(
                 ActionApply.get_action_tracker('total_won')) / float(ActionApply.get_action_tracker('trades_closed')
@@ -309,7 +315,7 @@ class SimpleForexEnv(gym.Env):
             if ActionApply.get_action_tracker('trades_opened') > 0 and \
                 self.current_step / ActionApply.get_action_tracker('trades_opened') >= 60:
                 # reward for frequent trading
-                self.reward += 100
+                self.reward += 1
 
             # Log tracker
             logger.log_test('\nAction Tracker')
