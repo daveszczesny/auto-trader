@@ -75,6 +75,8 @@ class RewardFunction:
 
         if invalid_trade or invalid_close:
             # Punish for invalid action
+            if invalid_close:
+                ActionApply.increment_action_tracker('invalid_close', 1)
             return Punishment.INVALID_ACTION * -1
 
         if action.action_type == ActionType.DO_NOTHING:
@@ -205,8 +207,7 @@ class RewardFunction:
         top_part = reward - RewardFunction.minimum_reward_per_step
         bottom_part = RewardFunction.maximum_reward_per_step - RewardFunction.minimum_reward_per_step
 
-        return 2 * ((top_part) / (bottom_part)) - 1
-
+        return  2 * ((top_part) / (bottom_part)) - 1
 
     @staticmethod
     def reset_rewards():

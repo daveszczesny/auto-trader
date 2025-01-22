@@ -46,7 +46,12 @@ class EvaluatePerformanceCallback(BaseCallback):
         These strategies differentiate in the way they calculate the performance metric.
         """
         if self.n_calls % self.eval_freq == 0:
-            performance = evaluate_model(self.eval_env, **get_strategy_params('risk-aversed'))
+            performance = evaluate_model(
+                self.eval_env,
+                **get_strategy_params(
+                    config.get('performance_callback.selected_strategy')
+                    )
+            )
             if performance > self.best_performance:
                 self.best_performance = performance
 
@@ -98,11 +103,12 @@ def evaluate_model(env: Any, **kwargs) -> float:
     :return: The performance metric
     """
 
-    alpha = kwargs.get('alpha', 0.5)
-    beta = kwargs.get('beta', 0.8)
-    gamma = kwargs.get('gamma', 0.3)
-    delta = kwargs.get('delta', 0.5)
-    zeta = kwargs.get('zeta', 1.2)
+    weight_balance = kwargs.get('weight_balance', 0.5)
+    weight_reward = kwargs.get('weight_reward', 0.8)
+    weight_upnl = kwargs.get('weight_upnl', 0.3)
+    weight_winrate = kwargs.get('weight_winrate', 0.5)
+    weight_avgloss = kwargs.get('weight_avgloss', 1.2)
+    weight_invalidclose = kwargs.get('weight_invalidclose', 1.0)
 
     balance = env.get_attr('current_balance')[0]
     reward = env.get_attr('reward')[0]
@@ -110,19 +116,25 @@ def evaluate_model(env: Any, **kwargs) -> float:
     trades_placed = ActionApply.get_action_tracker('trades_opened')
     times_won = ActionApply.get_action_tracker('times_won')
     total_lost = ActionApply.get_action_tracker('total_lost')
+    invalid_close_count = ActionApply.get_action_tracker('invalid_close')
     avg_loss = total_lost / trades_placed if trades_placed > 0 else 0
     win_rate = times_won / trades_placed if trades_placed > 0 else 0
 
     phi = 1 if trades_placed > 1 else 0
 
-    positive_clause =  (alpha * balance) + (beta * reward) + (gamma * unrealized_pnl) + (delta * win_rate)
-    negative_clause = avg_loss * zeta
+    positive_clause =  (weight_balance * balance) + (weight_reward * reward) + (weight_upnl * unrealized_pnl) + (weight_winrate * win_rate)
+    negative_clause = (avg_loss * weight_avgloss) + (invalid_close_count * weight_invalidclose)
     performance = (phi * positive_clause) - negative_clause
 
-    normalizetion_factor = alpha + beta + gamma + delta + zeta
+    normalizetion_factor = sum(abs(value) for value in [
+        weight_balance,
+        weight_reward,
+        weight_upnl,
+        weight_winrate])
+
     if normalizetion_factor <= 0:
         raise ValueError('Normalization factor should be greater than 0')
-    
+
     performance = performance / normalizetion_factor
 
     logger.info(f'Evaluation results - balance: {balance}, reward: {reward}, unrealized_pnl: {unrealized_pnl}, win_rate: {win_rate}, trades placed: {trades_placed}')
@@ -133,33 +145,6 @@ def evaluate_model(env: Any, **kwargs) -> float:
 
 
 def get_strategy_params(strategy: str) -> Dict[str, float]:
-    strategies = {
-        # More aggressive strategy, focusing on maximizing profits, even at the cost of higher risk
-        'profit-seeking': {
-            'alpha': 0.6,
-            'beta': 1.0,
-            'gamma': 0.4,
-            'delta': 0.4,
-            'zeta': 1.0,
-        },
-        # More conservative strategy, focusing on minimizing risk, even at the cost of lower profits
-        'risk-aversed': {
-            'alpha': 0.4,
-            'beta': 0.6,
-            'gamma': 0.2,
-            'delta': 0.6,
-            'zeta': 1.5,
-        },
-        # Balanced strategy, focusing on a balance between profits and risk
-        'balanced': {
-            'alpha': 0.5,
-            'beta': 0.8,
-            'gamma': 0.3,
-            'delta': 0.5,
-            'zeta': 1.2,
-        }
-    }
-
     strategies = config.get('performance_callback.strategies')
     if strategies is None:
         raise ValueError('No strategies found in the config file')

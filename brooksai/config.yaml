@@ -45,7 +45,7 @@ environment:
       no_trade_open: 0.5
       trade_closed_in_loss: 0.2
       significant_loss: 0.2
-      invalid_action: 0.8
+      invalid_action: 1.0
       agent_not_improving: 0.3
 
     reward:
@@ -67,27 +67,31 @@ environment:
       do_nothing_midpoint: 2880
 
 performance_callback:
+  selected_strategy: 'balanced'
   strategies:
     - strategy:
         name: 'profit-seeking'
-        alpha: 0.6
-        beta: 1.0
-        gamma: 0.4
-        delta: 0.4
-        zeta: 1.0
+        weight_balance: 0.6
+        weight_reward: 1.0
+        weight_upnl: 0.4
+        weight_winrate: 0.4
+        weight_avgloss: 1.0
+        weight_invalidclose: 5.0
 
     - strategy:
         name: 'risk-aversed'
-        alpha: 0.4
-        beta: 0.6
-        gamma: 0.2
-        delta: 0.6
-        zeta: 1.5
+        weight_balance: 0.4
+        weight_reward: 0.6
+        weight_upnl: 0.2
+        weight_winrate: 0.6
+        weight_avgloss: 1.5
+        weight_invalidclose: 5.0
 
     - strategy:
         name: 'balanced'
-        alpha: 0.5
-        beta: 0.8
-        gamma: 0.3
-        delta: 0.5
-        zeta: 1.2
+        weight_balance: 0.5
+        weight_reward: 0.8
+        weight_upnl: 0.3
+        weight_winrate: 0.5
+        weight_avgloss: 1.2
+        weight_invalidclose: 5.0

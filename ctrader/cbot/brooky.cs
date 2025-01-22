@@ -28,18 +28,21 @@ namespace cAlgo.Robots
         protected override void OnStart()
         {
             Print("Welcome to BrookyAI - Created by Dave Szczesny");
+
             this.warmup();
+
         }
 
         void warmup()
         {
+
             // initialize the indicators
             ema21 = Indicators.ExponentialMovingAverage(Bars.ClosePrices, 21);
             ema50 = Indicators.ExponentialMovingAverage(Bars.ClosePrices, 50);
             ema200 = Indicators.ExponentialMovingAverage(Bars.ClosePrices, 200);
             
             // initialize variables
-            const int warmUpPeriod = 200;
+            const int warmUpPeriod = 1000;
             var closePrices = new double[warmUpPeriod];
             var highPrices = new double[warmUpPeriod];
             var lowPrices = new double[warmUpPeriod];
@@ -75,16 +78,22 @@ namespace cAlgo.Robots
                 }
             };
 
-            string jsonData = JsonSerializer.Serialize(payload);
+            BeginInvokeOnMainThread(() =>
+            {
+                string jsonData = JsonSerializer.Serialize(payload);
+                SendPostRequestToWarmUp(jsonData);
+            });
 
-            SendPostRequestToWarmUp(jsonData);
         }
 
         protected override void OnBar()
         {
             
             if (!this.warmedUp) {
-                Print("Bot not warmed up! Restarting warmup sequence.");
+                BeginInvokeOnMainThread(() =>
+                {
+                    Print("Bot not warmed up! Restarting warmup sequence.");
+                });
                 return;
             }
 
@@ -114,8 +123,11 @@ namespace cAlgo.Robots
             };
 
             string jsonData = JsonSerializer.Serialize(payload);
-
-            SendPostRequest(jsonData);
+            
+            BeginInvokeOnMainThread(() =>
+            {
+                SendPostRequest(jsonData);
+            });
         }
 
 
@@ -130,21 +142,32 @@ namespace cAlgo.Robots
                 if (response.IsSuccessStatusCode)
                 {
                     string content_ = await response.Content.ReadAsStringAsync();
-                    HandleResponse(content_);
+                    BeginInvokeOnMainThread(() =>
+                    {
+                        HandleResponse(content_);
+                    });
                 }
                 else if(response.StatusCode == System.Net.HttpStatusCode.ServiceUnavailable){
-                    Print("Warmup failed to uphold. Restarting warmup. Status Code: " + response.StatusCode);
-                    this.warmup();
+                    BeginInvokeOnMainThread(()=>
+                    {
+                        Print("Warmup failed to uphold. Restarting warmup. Status Code: " + response.StatusCode);
+                        this.warmup();
+                    });
                 }
                 else
                 {
-                    Print("Failed to send data due to unhandled response code.");
-                    Print("Status code: " + response.StatusCode);
+                    BeginInvokeOnMainThread(()=>
+                    {
+                        Print("Failed to send data due to unhandled response code.");
+                        Print("Status code: " + response.StatusCode);
+                    });
                 }
-            }
-            catch(Exception e) {
-                Print("Failed sending post request");
-                Print(e.Message);
+            }catch(Exception e){
+                BeginInvokeOnMainThread(() => 
+                {
+                    Print("Failed sending post request");
+                    Print(e.Message);
+                });
             }
         }
 
@@ -153,32 +176,43 @@ namespace cAlgo.Robots
         {
             try
             {
-                Print("Attempting to send warmup post request");
+
+                BeginInvokeOnMainThread(()=>
+                {
+                    Print("Attempting to send warmup post request");
+                });
                 var API = BASE_URL + "/brooksai/warmup";
                 var content = new StringContent(jsonData, Encoding.UTF8, "application/json");
                 HttpResponseMessage response = await httpClient.PostAsync(API, content);
 
                 if (response.IsSuccessStatusCode)
                 {
-                    this.warmedUp = true;
+                    
+                    BeginInvokeOnMainThread(() => {
+                        Print("Successfully sent warmup request");
+                        this.warmedUp = true;
+                    });
                 }
                 else
                 {
-                    Print("Failed to send data");
-                    Print("Status code: " + response.StatusCode);
+                    BeginInvokeOnMainThread(() => {
+                        Print("Failed to send data");
+                        Print("Status code: " + response.StatusCode);
+                    });
                 }
+                
             }
             catch (Exception e) {
-                Print(e.Message);
+                BeginInvokeOnMainThread(() => {
+                    Print(e.Message);
+                });
             }
         }
 
         private void HandleResponse(string content)
         {
-            if (content == null) {
-                Print("No response from server");
-                return;
-            };
+
+            if (content == null) return;
 
             var response = JsonSerializer.Deserialize<Dictionary<string, string>>(content);
 
@@ -193,20 +227,31 @@ namespace cAlgo.Robots
 
             if (action == "BUY" || action == "SELL")
             {
-                Print("Entering into trade!");
-                TradeType tradeType = action == "BUY" ? TradeType.Buy : TradeType.Sell;
-                ExecuteMarketOrder(tradeType, symbol, 1);
+                BeginInvokeOnMainThread(() => 
+                {
+                    Print("Entering into trade!");
+                    TradeType tradeType = action == "BUY" ? TradeType.Buy : TradeType.Sell;
+                    ExecuteMarketOrder(tradeType, symbol, 1, "Brooky");
+                });
             }
             else if (action == "CLOSE")
             {
-                Print("Attempting to exit trade!");
-                var position = Positions.Find("Brooky");
-                if (position != null)
+                BeginInvokeOnMainThread(() =>
                 {
-                    ClosePosition(position);
-                }
+                    Print("Attempting to exit trade!");
+                    var position = Positions.Find("Brooky");
+                    if (position != null)
+                    {
+                        ClosePosition(position);
+                    }else{
+                        Print("No positions found with label 'Brooky'/. ")
+                    }
+                });
             } else {
-                Print("Will do nothing for a minute. Just wait and see what I do :)");
+                BeginInvokeOnMainThread(() => 
+                {
+                    Print("Will do nothing for a minute. Just wait and see what I do :)");
+                });
             }
 
         }

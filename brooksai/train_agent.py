@@ -2,6 +2,7 @@ import os
 import sys
 import logging
 import time
+import random
 
 from typing import Tuple
 
@@ -61,7 +62,11 @@ $$ |  $$ |\$$$$$$  |  \$$$$  |\$$$$$$  |$$ |$$ |     \$$$$$$$ |\$$$$$$$ |\$$$$$$
         start_time = time.time()
         logger.info(f'Starting training cycle {i + 1}')
 
-        for window in windows.to_delayed():
+        # Shuffle partitions
+        window_list = windows.to_delayed()
+        random.shuffle(window_list)
+
+        for window in window_list:
             run_model(window, start_time, i)
 
 

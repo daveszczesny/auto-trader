@@ -95,6 +95,7 @@ class ActionApply:
         'total_lost': 0,
         'times_won': 0,
         'times_lost': 0,
+        'invalid_close': 0,
     }
 
     @staticmethod
@@ -158,6 +159,13 @@ class ActionApply:
     @staticmethod
     def get_action_tracker(key: str):
         return ActionApply.action_tracker.get(key, 0)
+    
+    @staticmethod
+    def increment_action_tracker(key: str, incr: int):
+        if key in ActionApply.action_tracker:
+            ActionApply.action_tracker[key] += incr
+        else:
+            raise ValueError(f'ActionApply has no key {key}. ')
 
     @staticmethod
     def reset_tracker():
@@ -168,4 +176,5 @@ class ActionApply:
             'total_lost': 0,
             'times_won': 0,
             'times_lost': 0,
+            'invalid_close': 0,
         }

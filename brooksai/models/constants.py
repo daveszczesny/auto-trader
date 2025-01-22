@@ -25,7 +25,7 @@ class Punishment:
     SIGNIFICANT_LOSS = \
         config.get('environment.constants.punishment.significant_loss', 0.2)
     INVALID_ACTION = \
-        config.get('environment.constants.punishment.invalid_action', 0.8)
+        config.get('environment.constants.punishment.invalid_action', 1)
     AGENT_NOT_IMPROVING = \
         config.get('environment.constants.punishment.agent_not_improving', 0.3)
 

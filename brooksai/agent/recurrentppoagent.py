@@ -17,6 +17,7 @@ try:
 except Exception as _:
     pass
 
+import logging
 from typing import Any
 
 import numpy as np
@@ -29,6 +30,9 @@ from brooksai.config_manager import ConfigManager
 from brooksai.agent.callbacks.performance_callback import EvaluatePerformanceCallback
 
 config = ConfigManager()
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class RecurrentPPOAgent:
     """
@@ -60,7 +64,7 @@ class RecurrentPPOAgent:
             batch_size=batch_size, # larger number reduces variance in learning?
             n_epochs=config.get('model.n_epochs', 10),
             gamma=gamma, # encourages more immediate rewards
-            learning_rate=learning_rate,
+            learning_rate=RecurrentPPOAgent.linear_schedule(learning_rate),
             clip_range=config.get('model.clip_range', 0.2),
             gae_lambda=gae_lambda,
             ent_coef=ent_coef, # entropy coefficient
@@ -77,19 +81,26 @@ class RecurrentPPOAgent:
         self.num_envs = 1
         self.log_dir = log_dir
 
-    def learn(self, total_timesteps: int):
+    def learn(
+            self, 
+              total_timesteps: int, 
+              evaluate: bool = False
+            ):
         """
         Train the model on the environment for a specified number of timesteps.
         :param total_timesteps: The total number of timesteps to train the model for.
         """
 
-        evaluate_performance_callback = EvaluatePerformanceCallback(
-            self.env,
-            eval_freq=total_timesteps-1,
-            verbose=1
-        )
+        if evaluate:
+            evaluate_performance_callback = EvaluatePerformanceCallback(
+                self.env,
+                eval_freq=total_timesteps-1,
+                verbose=1
+            )
 
-        self.model.learn(total_timesteps, tb_log_name="ppo_recurrent", callback=evaluate_performance_callback)
+            self.model.learn(total_timesteps, tb_log_name="ppo_recurrent", callback=evaluate_performance_callback)
+        else:
+            self.model.learn(total_timesteps, tb_log_name="ppo_recurrent")
 
 
     def predict(self, observation=None, **kwargs):
@@ -119,7 +130,9 @@ class RecurrentPPOAgent:
             observation = kwargs.get('observation')
 
         lstm_states = kwargs.get('lstm_states') or kwargs.get('state')
-        episode_starts = kwargs.get('episode_starts') or kwargs.get('episode_start')
+        episode_starts = kwargs.get('episode_starts')
+        if episode_starts is None:
+             episode_starts = kwargs.get('episode_start')
         deterministic = kwargs.get('deterministic', False)
 
         if observation is None or episode_starts is None:
@@ -133,6 +146,18 @@ class RecurrentPPOAgent:
         )
 
         return raw_action, lstm_states
+
+
+    @staticmethod
+    def linear_schedule(initial_value):
+        """
+        Linear schedule from initial value to 0.
+        :param initial_value: The initial value of the schedule.
+        :return: The schedule function.
+        """
+        def schedule(progress_remaining):
+            return initial_value * progress_remaining
+        return schedule
 
 
     def save(self, path: str):
@@ -149,6 +174,7 @@ class RecurrentPPOAgent:
         """
 
         model = RecurrentPPO.load(path, env=env)
+        model.lr_schedule = RecurrentPPOAgent.linear_schedule(model.learning_rate)
         agent = RecurrentPPOAgent(env)
         agent.model = model
         return agent

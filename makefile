@@ -15,6 +15,9 @@ clean-venv:
 train:
 	PYTHONPATH=${shell pwd} venv/bin/python brooksai/train_agent.py
 
+train-cv:
+	PYTHONPATH=${shell pwd} venv/bin/python brooksai/train_agent_cv.py
+
 tune:
 	PYTHONPATH=${shell pwd} venv/bin/python brooksai/tuner.py
 

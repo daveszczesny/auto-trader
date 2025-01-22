@@ -254,7 +254,7 @@ def warmup(request):
 
         for observation in observation_list:
             # We are ignoring the action here
-            _, lstm_states = model.predict(observation,
+            _, lstm_states = model.predict(observation=observation,
                                            state=lstm_states,
                                            episode_starts=episode_start,
                                            deterministic=True)
