@@ -58,6 +58,9 @@ clean-venv-w:
 train-w:
 	set PYTHONPATH=%cd% && venv\Scripts\python brooksai\train_agent.py
 
+train-cv-w:
+	set PYTHONPATH=%cd% && venv\Scripts\python brooksai\train_agent_cv.py
+
 lint-w:
 	venv\Scripts\pylint --fail-under=9 brooksai
 	venv\Scripts\pylint --fail-under=9 drep

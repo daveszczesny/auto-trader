@@ -23,6 +23,7 @@ class ActionBuilder:
 
         if ActionBuilder._is_invalid_acition(action_type, raw_action):
             # If the action is invalid, do nothing
+            logger.info(f'There has been an invalid action. Action type: {action_type}')
             return ActionModel(action_type=ActionType.DO_NOTHING)
 
         if action_type in [ActionType.LONG, ActionType.SHORT]:

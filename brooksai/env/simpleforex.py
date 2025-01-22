@@ -291,9 +291,6 @@ class SimpleForexEnv(gym.Env):
         """
         self.done = self.current_step >= self.n_steps
 
-        if self.done:
-            log_.info(f'Episode is done, {self.current_step} >= {self.n_steps - 1}')
-
         # If the episode is done, close all trades
         #   calculate the final balance
         #   and calculate the reward
