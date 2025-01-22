@@ -1,6 +1,7 @@
 import os
 import sys
 import logging
+import copy
 
 import torch
 import dask.dataframe as dd
@@ -56,7 +57,8 @@ def load_agent(env):
     logger.info('Agent loaded')
     return agent
 
-def configure_env(window):
+def configure_env(org_window):
+    window = copy.deepcopy(org_window)
     window_ = window.select_dtypes(include=[float, int])
     window_ = window_.compute()
     window_ = torch.tensor(window_.values, dtype=torch.float32)
