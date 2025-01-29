@@ -94,7 +94,7 @@ class RecurrentPPOAgent:
         if evaluate:
             evaluate_performance_callback = EvaluatePerformanceCallback(
                 self.env,
-                eval_freq=total_timesteps-1,
+                eval_freq=total_timesteps-2,
                 verbose=1
             )
 

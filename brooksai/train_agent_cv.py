@@ -93,25 +93,34 @@ logger.info('Partitioning dataset')
 partionted_dataset = partition_dataset(dataset)
 logger.info(f'Created {len(partionted_dataset)} partitions')
 
+train_folds = 6
+eval_folds = 2
+
 # number of folds
-n_folds = 5
+n_folds = 8
 kf = KFold(n_splits=n_folds, shuffle=True, random_state=42)
 
 for fold, (train_index, val_index) in enumerate(kf.split(partionted_dataset)):
-    train_windows = [partionted_dataset[i] for i in train_index]
-    val_windows = [partionted_dataset[i] for i in val_index]
+
+    if fold >= train_folds + eval_folds:
+        logger.info('Completed training and evaluation')
+        break
+
+    train_windows = [partionted_dataset[i] for i in train_index][:train_folds]
+    val_windows = [partionted_dataset[i] for i in val_index][:eval_folds]
 
     env, _ = configure_env(train_windows[0])
     agent = load_agent(env)
 
     logger.info(f'Starting fold {fold + 1}')
 
-    for window in train_windows:
+    for index in range(len(train_windows)):
         # Train model
-        env, window_ = configure_env(window)
+        logger.info(f'Training model on window {index + 1}')
+        env, window_ = configure_env(train_windows[index])
         run_model(agent, env, window_, False)
 
-    for window in val_windows:
-        env, window_ = configure_env(window)
+    for index in range(len(val_windows)):
+        env, window_ = configure_env(val_windows[index])
         run_model(agent, env, window_, True)
 

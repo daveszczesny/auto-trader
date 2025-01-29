@@ -152,15 +152,20 @@ class SimpleForexEnv(gym.Env):
         :param action: np.ndarray
         :return: Tuple[torch.Tensor, float, bool, bool, dict], observation, reward, done, _, info
         """
+
+        # Calculate the reward for step using raw action
+        # Using raw action in order to account for invalid actions
+        self.reward = RewardFunction.get_reward(
+            action,
+            self.current_price,
+            self.current_step
+        )
+
+
         # Construct the action from agent input
         action: Action = ActionBuilder.construct_action(action)
 
-        # Not needed right now, but will eventually once sl & tp are used by agent
-        # trigger_stop_or_take_profit(self.current_high, self.current_low)
-
-        # Calculate the reward for step
-        self.reward = self._calculate_reward(action)
-
+       
         # Apply the action to the environment
         value, self.trade_window = ActionApply.apply_action(action,
                                              current_price=self.current_price,
@@ -270,13 +275,7 @@ class SimpleForexEnv(gym.Env):
                 len(open_trades)
                 ], dtype=torch.float32, device=ApplicationConstants.DEVICE)
         return observation.cpu().numpy()
-
-    def _calculate_reward(self, action: Action) -> float:
-        return RewardFunction.get_reward(
-            action,
-            self.current_price,
-            self.current_step
-        )
+        
 
 
     def _is_done(self) -> None:
@@ -289,7 +288,7 @@ class SimpleForexEnv(gym.Env):
         Conditions for episode to be done:
         2. Trade window is negative
         """
-        self.done = self.current_step >= self.n_steps
+        self.done = self.current_step >= self.n_steps -1
 
         # If the episode is done, close all trades
         #   calculate the final balance
