@@ -69,29 +69,29 @@ environment:
 performance_callback:
   selected_strategy: 'balanced'
   strategies:
-    - strategy:
-        name: 'profit-seeking'
-        weight_balance: 0.6
-        weight_reward: 1.0
-        weight_upnl: 0.4
-        weight_winrate: 0.4
-        weight_avgloss: 1.0
-        weight_invalidclose: 5.0
+  - strategy:
+      name: 'profit-seeking'
+      weight_balance: 0.6
+      weight_reward: 1.0
+      weight_upnl: 0.4
+      weight_winrate: 0.4
+      weight_avgloss: 1.0
+      weight_invalidclose: 5.0
 
-    - strategy:
-        name: 'risk-aversed'
-        weight_balance: 0.4
-        weight_reward: 0.6
-        weight_upnl: 0.2
-        weight_winrate: 0.6
-        weight_avgloss: 1.5
-        weight_invalidclose: 5.0
+  - strategy:
+      name: 'risk-aversed'
+      weight_balance: 0.4
+      weight_reward: 0.6
+      weight_upnl: 0.2
+      weight_winrate: 0.6
+      weight_avgloss: 1.5
+      weight_invalidclose: 5.0
 
-    - strategy:
-        name: 'balanced'
-        weight_balance: 0.5
-        weight_reward: 0.8
-        weight_upnl: 0.3
-        weight_winrate: 0.5
-        weight_avgloss: 1.2
-        weight_invalidclose: 5.0
+  - strategy:
+      name: 'balanced'
+      weight_balance: 0.5
+      weight_reward: 0.8
+      weight_upnl: 0.3
+      weight_winrate: 0.5
+      weight_avgloss: 1.2
+      weight_invalidclose: 5.0

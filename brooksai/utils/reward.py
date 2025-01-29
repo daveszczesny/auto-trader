@@ -1,10 +1,11 @@
 from typing import Dict, List
+import copy
 
 import torch
 
 from brooksai.models import trade
 from brooksai.models.action import Action
-from brooksai.utils.action import ActionApply
+from brooksai.utils.action import ActionBuilder, ActionApply
 from brooksai.models.constants import Punishment, Reward, ApplicationConstants, ActionType
 
 class RewardFunction:
@@ -37,6 +38,10 @@ class RewardFunction:
         'steps': torch.tensor([], dtype=torch.float32)
     }
 
+    agent_reward_tracker: Dict[str, float] = {
+        'reward': 0.0,
+    }
+
     previous_actions: List[ActionType] = []
     previous_actions_for_sparse_reward: List[ActionType] = []
     previous_price: float = None
@@ -44,12 +49,26 @@ class RewardFunction:
     @staticmethod
     def get_reward(action: Action, current_price: float, current_step: int):
 
+        # action is in raw format, need to construct it
+        # we are evaluating reward before applying the action
+        # as we need to consider invalid actions properly in our reward structure
+        action = copy.deepcopy(action)
+        action = ActionBuilder.construct_action(action)
+
         reward: float = 0.0
         if current_step % RewardFunction.sparse_reward_interval == 0 and current_step != 0:
             reward += RewardFunction.get_sparse_reward(current_price)
 
         reward += RewardFunction.get_dense_reward(action, current_price)
-        return RewardFunction.normalize_reward(reward)
+        normalized_reward =  RewardFunction.normalize_reward(reward)
+        RewardFunction.agent_reward_tracker['reward'] += normalized_reward
+        return normalized_reward
+    
+
+    @staticmethod
+    def get_total_reward() -> float:
+        return RewardFunction.agent_reward_tracker['reward']
+
 
 
     @staticmethod

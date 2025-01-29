@@ -8,15 +8,16 @@ from stable_baselines3.common.callbacks import BaseCallback
 
 from brooksai.config_manager import ConfigManager
 from brooksai.utils.action import ActionApply
+from brooksai.utils.reward import RewardFunction
 
 logging.basicConfig(level=logging.INFO, format='%(name)s - %(message)s')
-logger = logging.getLogger('AutoTrader')
+logger = logging.getLogger('Evaluation Callback')
 
 config = ConfigManager()
 
 best_model_base_path: str = 'best_models/'
 
-DEFAULT_PERFORMANCE_BENCHMARK = 1400
+DEFAULT_PERFORMANCE_BENCHMARK = 500
 METADATA_PATH = os.path.join(best_model_base_path, 'metadata.json')
 
 
@@ -37,6 +38,8 @@ class EvaluatePerformanceCallback(BaseCallback):
         self.eval_env = eval_env
         self.eval_freq = eval_freq
         self.best_performance = self.load_best_performance_model()
+        logger.info(f'Best performance loaded: {self.best_performance}')
+        logger.info('using performance callback')
 
     def _on_step(self) -> bool:
         """
@@ -45,6 +48,7 @@ class EvaluatePerformanceCallback(BaseCallback):
         The model can pick between three strategies: profit-seeking, risk-aversed, and balanced.
         These strategies differentiate in the way they calculate the performance metric.
         """
+
         if self.n_calls % self.eval_freq == 0:
             performance = evaluate_model(
                 self.eval_env,
@@ -111,7 +115,7 @@ def evaluate_model(env: Any, **kwargs) -> float:
     weight_invalidclose = kwargs.get('weight_invalidclose', 1.0)
 
     balance = env.get_attr('current_balance')[0]
-    reward = env.get_attr('reward')[0]
+    reward = RewardFunction.get_total_reward()
     unrealized_pnl = env.get_attr('unrealised_pnl')[0]
     trades_placed = ActionApply.get_action_tracker('trades_opened')
     times_won = ActionApply.get_action_tracker('times_won')

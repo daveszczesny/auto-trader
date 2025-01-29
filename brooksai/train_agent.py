@@ -23,10 +23,12 @@ sys.setrecursionlimit(10**6)
 config = ConfigManager()
 
 CYCLES = config.get('training.cycles', 1_000)
-PARTITIONS = config.get('training.partitions', 50)
+PARTITIONS = config.get('training.partitions', 2500)
 
 logging.basicConfig(level=logging.INFO, format='%(name)s - %(message)s')
 logger = logging.getLogger('AutoTrader')
+
+logger.info(f'training partitions {config.get("training.partitions", 0)}')
 
 best_model_base_path: str = config.get('training.best_model_path', 'best_models/')
 best_model_path = best_model_base_path + 'best_model_cycle_1.zip'
@@ -100,7 +102,7 @@ def run_model(window, start_time, i) -> None:
 
         # Commence training
         logger.info(f'Commencing training with {len(window_)} data points')
-        model.learn(total_timesteps=len(window_))
+        model.learn(total_timesteps=len(window_), evaluate=True)
         env.close()
 
 
