@@ -56,6 +56,8 @@ More on **brookyapi** under its own README.md
 
 - More Forex symbol support
 - More time control support (i.e. 5 minute, 15 minute)
+- Ability to trade multiple symbols concurrently
+- Use more indicators / ability to learn new indicators at any time
 
 ## Credit
 
