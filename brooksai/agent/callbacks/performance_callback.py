@@ -39,7 +39,6 @@ class EvaluatePerformanceCallback(BaseCallback):
         self.eval_freq = eval_freq
         self.best_performance = self.load_best_performance_model()
         logger.info(f'Best performance loaded: {self.best_performance}')
-        logger.info('using performance callback')
 
     def _on_step(self) -> bool:
         """
