@@ -229,7 +229,7 @@ namespace cAlgo.Robots
             {
                 BeginInvokeOnMainThread(() => 
                 {
-                    Print("Entering into trade!");
+                    Print("Entering into a trade!");
                     TradeType tradeType = action == "BUY" ? TradeType.Buy : TradeType.Sell;
                     ExecuteMarketOrder(tradeType, symbol, 1, "Brooky");
                 });
@@ -238,7 +238,6 @@ namespace cAlgo.Robots
             {
                 BeginInvokeOnMainThread(() =>
                 {
-                    Print("Attempting to exit trade!");
                     var position = Positions.Find("Brooky");
                     if (position != null)
                     {
@@ -246,11 +245,6 @@ namespace cAlgo.Robots
                     }else{
                         Print("No positions found with label 'Brooky'/. ")
                     }
-                });
-            } else {
-                BeginInvokeOnMainThread(() => 
-                {
-                    Print("Will do nothing for a minute. Just wait and see what I do :)");
                 });
             }
 
